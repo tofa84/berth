@@ -130,4 +130,4 @@ berth is built on Apple's [`container`](https://github.com/apple/container) and 
 
 ## License
 
-[MIT](LICENSE) © Falco Tomasetti
+[MIT](LICENSE)
