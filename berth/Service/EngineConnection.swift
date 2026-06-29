@@ -1,0 +1,118 @@
+//
+//  EngineConnection.swift
+//  berth
+//
+//  Tracks whether the apple/container engine (apiserver) is reachable, by
+//  polling ClientHealthCheck.ping(). Drives the global "not running" state,
+//  the sidebar status card, and a version handshake against the pinned engine.
+//
+
+import Foundation
+import Observation
+import ContainerAPIClient
+import ContainerResource
+
+@MainActor
+@Observable
+final class EngineConnection {
+    enum State: Sendable {
+        case connecting
+        case running(SystemHealth)
+        case down(String)
+    }
+
+    /// The engine version this app was built against (SPM pin).
+    static let pinnedVersion = "1.0.0"
+
+    private(set) var state: State = .connecting
+    private(set) var starting = false
+
+    private let service: ContainerService
+    private var pollTask: Task<Void, Never>?
+
+    init(service: ContainerService) {
+        self.service = service
+    }
+
+    var isRunning: Bool {
+        if case .running = state { return true }
+        return false
+    }
+
+    var health: SystemHealth? {
+        if case .running(let h) = state { return h }
+        return nil
+    }
+
+    /// Engine semantic version parsed out of the verbose apiServerVersion string,
+    /// e.g. "container-apiserver version 1.0.0 (build: release, …)" -> "1.0.0".
+    var version: String? {
+        guard let raw = health?.apiServerVersion else { return nil }
+        if let m = raw.range(of: #"\d+\.\d+\.\d+"#, options: .regularExpression) {
+            return String(raw[m])
+        }
+        return raw
+    }
+
+    var versionMismatch: Bool {
+        guard let v = version else { return false }
+        return v != Self.pinnedVersion
+    }
+
+    func startMonitoring() {
+        guard pollTask == nil else { return }
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refresh()
+                let interval: Duration = (self?.isRunning ?? false) ? .seconds(5) : .seconds(2)
+                try? await Task.sleep(for: interval)
+            }
+        }
+    }
+
+    func stopMonitoring() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    func refresh() async {
+        do {
+            let health = try await service.health()
+            state = .running(health)
+        } catch {
+            state = .down(Self.describe(error))
+        }
+    }
+
+    /// Attempt to start the engine via the CLI, then re-check.
+    func startEngine() async {
+        starting = true
+        defer { starting = false }
+        do {
+            try await SystemControl.start()
+        } catch {
+            state = .down(SystemControl.describe(error))
+            return
+        }
+        // `container system start` returns once launchd has bootstrapped the job,
+        // but the apiserver's Mach service needs a moment more before it accepts
+        // connections. Poll until it's reachable (keeping the "Starting…" state)
+        // rather than flashing "not running" on the first, usually-failing ping.
+        let deadline = ContinuousClock.now.advanced(by: .seconds(15))
+        repeat {
+            await refresh()
+            if isRunning { return }
+            try? await Task.sleep(for: .milliseconds(400))
+        } while ContinuousClock.now < deadline
+    }
+
+    private static func describe(_ error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? "\(error)"
+    }
+}
+
+private extension SystemControl {
+    static func describe(_ error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? "\(error)"
+    }
+}

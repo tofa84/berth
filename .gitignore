@@ -1,0 +1,18 @@
+# Xcode — user-specific (leaks username, holds local UI/scheme state)
+xcuserdata/
+*.xcuserstate
+
+# Build output
+DerivedData/
+.build/
+build/
+*.xcframework
+
+# SwiftPM
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Local agent notes (not part of the project)
+CLAUDE.md
