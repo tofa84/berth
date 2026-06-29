@@ -27,6 +27,15 @@ final class NetworksStore {
 
     func usedBy(_ network: NetworkResource) -> Int { usage[network.name] ?? 0 }
 
+    /// The list narrowed by the global search query (name / subnet).
+    func displayed(matching query: String) -> [NetworkResource] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return all }
+        return all.filter {
+            $0.name.lowercased().contains(q) || $0.subnetText.lowercased().contains(q)
+        }
+    }
+
     func load() async {
         if case .idle = state { state = .loading }
         do {

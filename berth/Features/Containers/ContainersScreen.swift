@@ -8,6 +8,8 @@ import ContainerResource
 
 struct ContainersScreen: View {
     @Environment(AppModel.self) private var model
+    @State private var confirmPrune = false
+    @State private var pendingDelete: String?
 
     var body: some View {
         let store = model.containers
@@ -18,7 +20,7 @@ struct ContainersScreen: View {
                 list(store)
             }
         }
-        .task { await store.load() }
+        .task(id: model.engine.epoch) { await store.load() }
     }
 
     // Column widths (match the design's grid).
@@ -35,9 +37,8 @@ struct ContainersScreen: View {
                         options: ContainersStore.Filter.allCases.map { ($0, label($0, store)) },
                         selection: $store.filter
                     )
-                    SecondaryButton(title: "Prune stopped") {
-                        Task { await store.pruneStopped() }
-                    }
+                    SecondaryButton(title: "Prune stopped") { confirmPrune = true }
+                        .disabled(store.stoppedCount == 0 || store.busy)
                 }
             }
             .padding(.horizontal, 22).padding(.top, 18).padding(.bottom, 12)
@@ -54,11 +55,17 @@ struct ContainersScreen: View {
                 if store.filtered.isEmpty {
                     CenteredMessage(systemImage: "rectangle.stack", title: "No containers", message: emptyMessage(store))
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(store.filtered) { c in
-                                row(c, store)
-                                Divider().overlay(Theme.border)
+                    let shown = store.displayed(matching: model.search)
+                    if shown.isEmpty {
+                        CenteredMessage(systemImage: "magnifyingglass", title: "No matching containers",
+                                        message: "No container matches the current search.")
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(shown) { c in
+                                    row(c, store)
+                                    Divider().overlay(Theme.border)
+                                }
                             }
                         }
                     }
@@ -70,6 +77,27 @@ struct ContainersScreen: View {
             if let err = store.actionError {
                 ErrorToast(text: err)
             }
+        }
+        .confirmationDialog("Prune stopped containers?",
+                            isPresented: $confirmPrune, titleVisibility: .visible) {
+            Button("Delete \(store.stoppedCount) stopped", role: .destructive) {
+                Task { await store.pruneStopped() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Permanently removes all stopped containers. Running containers are not affected.")
+        }
+        .confirmationDialog("Delete container?",
+                            isPresented: Binding(get: { pendingDelete != nil },
+                                                 set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let id = pendingDelete { Task { await store.delete(id) } }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("Forcibly removes the container — a running container is killed first.")
         }
     }
 
@@ -153,7 +181,7 @@ struct ContainersScreen: View {
                         Button("Kill") { Task { await store.kill(c.id) } }
                         Divider()
                     }
-                    Button("Delete", role: .destructive) { Task { await store.delete(c.id) } }
+                    Button("Delete", role: .destructive) { pendingDelete = c.id }
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 14)).foregroundStyle(Theme.textTertiary)
                         .frame(width: 28, height: 28)

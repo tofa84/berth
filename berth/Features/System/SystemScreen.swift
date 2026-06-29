@@ -29,7 +29,7 @@ struct SystemScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .bottom) { if let e = store.error { ErrorToast(text: e) } }
-        .task { await store.load() }
+        .task(id: model.engine.epoch) { await store.load() }
     }
 
     private func subtitle(_ engine: EngineConnection) -> String {
@@ -98,7 +98,7 @@ struct SystemScreen: View {
         let info = ProcessInfo.processInfo
         let gb = Int((Double(info.physicalMemory) / 1_073_741_824).rounded())
         return InfoCard(title: "Host") {
-            KeyValue("Hostname", info.hostName)
+            KeyValue("Hostname", DisplayHost.name)
             KeyValue("CPU cores", "\(info.processorCount)")
             KeyValue("Memory", "\(gb) GB")
             KeyValue("macOS", info.operatingSystemVersionString)

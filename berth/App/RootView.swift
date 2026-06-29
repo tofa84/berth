@@ -25,6 +25,9 @@ struct RootView: View {
         }
         .background(Theme.bg)
         .frame(minWidth: 1040, minHeight: 660)
+        // A query only makes sense within one resource list; reset it on switch so
+        // a leftover term doesn't silently empty the next screen.
+        .onChange(of: model.selection) { model.search = "" }
         .sheet(isPresented: $model.showRunSheet) {
             RunContainerSheet()
         }

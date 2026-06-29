@@ -29,6 +29,19 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Placeholder for the global search field on this screen, or `nil` when the
+    /// screen has no searchable list (the top-bar field is hidden there).
+    var searchPlaceholder: String? {
+        switch self {
+        case .containers: "Search containers…"
+        case .images: "Search images…"
+        case .volumes: "Search volumes…"
+        case .networks: "Search networks…"
+        case .registries: "Search registries…"
+        case .dashboard, .builds, .system: nil
+        }
+    }
+
     var icon: String {
         switch self {
         case .dashboard: "square.grid.2x2"

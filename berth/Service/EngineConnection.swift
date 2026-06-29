@@ -27,6 +27,12 @@ final class EngineConnection {
     private(set) var state: State = .connecting
     private(set) var starting = false
 
+    /// Bumped every time the engine becomes reachable after not being reachable
+    /// (first connect, or recovery after a stop/restart). Screens key their load
+    /// on this (`.task(id: engine.epoch)`) so they refresh once the engine — and
+    /// its XPC connection — is back, instead of staying stuck on a load error.
+    private(set) var epoch = 0
+
     private let service: ContainerService
     private var pollTask: Task<Void, Never>?
 
@@ -78,9 +84,15 @@ final class EngineConnection {
     func refresh() async {
         do {
             let health = try await service.health()
+            let wasRunning = isRunning
             state = .running(health)
+            if !wasRunning { epoch += 1 }   // not-running -> running: trigger a reload
         } catch {
-            state = .down(Self.describe(error))
+            // While an explicit start is in flight, the apiserver throws transient
+            // errors on every poll until its Mach service binds. Keep the prior
+            // state (the "Starting…" affordance) instead of flickering each error;
+            // a genuine failure surfaces once `starting` clears.
+            if !starting { state = .down(Self.describe(error)) }
         }
     }
 

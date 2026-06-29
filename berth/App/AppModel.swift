@@ -19,6 +19,9 @@ final class AppModel {
     var selection: SidebarItem = .dashboard
     var search: String = ""
     var showRunSheet = false
+    /// When set, the next Run sheet opens pre-filled with this image reference
+    /// (e.g. launched from the Images screen). Consumed once by RunContainerSheet.
+    var runPrefillImage: String?
 
     /// Optional sidebar badge counts, filled in by feature phases.
     var counts: [SidebarItem: Int] = [:]
@@ -82,6 +85,12 @@ final class AppModel {
 
     init() {
         engine = EngineConnection(service: service)
+    }
+
+    /// Open the Run sheet, optionally pre-filled with an image reference.
+    func openRunSheet(image: String? = nil) {
+        runPrefillImage = image
+        showRunSheet = true
     }
 
     func bootstrap() {

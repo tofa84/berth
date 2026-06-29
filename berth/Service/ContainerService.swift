@@ -13,9 +13,15 @@ import ContainerResource
 import ContainerPersistence
 import ContainerizationOCI
 import ContainerizationOS
+import TerminalProgress
 
 actor ContainerService {
-    private let client = ContainerClient()
+    /// A fresh `ContainerClient` per call. Each one opens its own XPC connection
+    /// (cancelled on deinit), mirroring how `ClientImage`/`ClientVolume`/
+    /// `ClientHealthCheck` work. A single cached client would keep a long-lived
+    /// connection that goes invalid when the engine restarts ("XPC connection
+    /// error: Connection invalid"), wedging every container call until relaunch.
+    private nonisolated func makeClient() -> ContainerClient { ContainerClient() }
     private var _config: ContainerSystemConfig?
 
     /// The engine's system configuration (registry/dns defaults), loaded once.
@@ -36,16 +42,17 @@ actor ContainerService {
 
     func listContainers(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
         // Exclude the helper "machine" containers, matching the CLI's `container list`.
-        try await client.list(filters: filters.withoutMachines())
+        try await makeClient().list(filters: filters.withoutMachines())
     }
 
     func container(id: String) async throws -> ContainerSnapshot {
-        try await client.get(id: id)
+        try await makeClient().get(id: id)
     }
 
     /// Start a stopped container, detached (no host stdio attached; output goes
     /// to the container's log files). Mirrors `container start` (detached path).
     func startContainer(id: String) async throws {
+        let client = makeClient()
         let snapshot = try await client.get(id: id)
         guard snapshot.status != .running else { return }
         let process = try await client.bootstrap(id: id, stdio: [nil, nil, nil])
@@ -53,19 +60,27 @@ actor ContainerService {
     }
 
     func stopContainer(id: String) async throws {
-        try await client.stop(id: id)
+        try await makeClient().stop(id: id)
     }
 
     func killContainer(id: String, signal: String = "SIGKILL") async throws {
-        try await client.kill(id: id, signal: signal)
+        try await makeClient().kill(id: id, signal: signal)
     }
 
     func deleteContainer(id: String, force: Bool = false) async throws {
-        try await client.delete(id: id, force: force)
+        try await makeClient().delete(id: id, force: force)
     }
 
     func restartContainer(id: String) async throws {
-        try? await client.stop(id: id)
+        let client = makeClient()
+        // Tolerate "already stopped" (a benign stop failure on a non-running
+        // container), but surface a real stop failure: if stop threw *and* the
+        // container is still running, the restart genuinely didn't happen.
+        let stopError: Error?
+        do { try await client.stop(id: id); stopError = nil }
+        catch { stopError = error }
+        let snapshot = try await client.get(id: id)
+        if snapshot.status == .running, let stopError { throw stopError }
         try await startContainer(id: id)
     }
 
@@ -74,7 +89,7 @@ actor ContainerService {
     /// A live stream of the container's stdout/stderr log lines. The reading
     /// happens off the main actor; cancelling the consuming task tears it down.
     nonisolated func logStream(id: String) -> AsyncStream<LogLine> {
-        let client = self.client
+        let client = makeClient()
         return AsyncStream { continuation in
             let task = Task {
                 do {
@@ -96,7 +111,7 @@ actor ContainerService {
     }
 
     func stats(id: String) async throws -> ContainerStats {
-        try await client.stats(id: id)
+        try await makeClient().stats(id: id)
     }
 
     // MARK: Aggregate summaries (Dashboard)
@@ -131,13 +146,49 @@ actor ContainerService {
         return out
     }
 
-    func pullImage(reference: String) async throws {
+    /// A coarse pull/unpack progress snapshot, accumulated from the engine's
+    /// `ProgressUpdateEvent` stream (delivered over an XPC endpoint).
+    struct PullProgress: Sendable {
+        var phase = "Preparing…"
+        var received: Int64 = 0
+        var total: Int64 = 0
+        /// 0...1 when a total is known; nil while indeterminate.
+        var fraction: Double? { total > 0 ? min(1, Double(received) / Double(total)) : nil }
+    }
+
+    /// Thread-safe accumulator: the engine calls the handler concurrently, so the
+    /// running totals live behind an actor and each batch returns a fresh snapshot.
+    private actor PullProgressState {
+        private var p = PullProgress()
+        func apply(_ events: [ProgressUpdateEvent]) -> PullProgress {
+            for e in events {
+                switch e {
+                case .setDescription(let s), .setSubDescription(let s): p.phase = s
+                case .setTotalSize(let v): p.total = v
+                case .addTotalSize(let v): p.total += v
+                case .setSize(let v): p.received = v
+                case .addSize(let v): p.received += v
+                default: break
+                }
+            }
+            return p
+        }
+    }
+
+    func pullImage(reference: String, progress: (@Sendable (PullProgress) -> Void)? = nil) async throws {
         let cfg = try await config()
         let normalized = try ClientImage.normalizeReference(reference, containerSystemConfig: cfg)
-        let image = try await ClientImage.pull(reference: normalized, containerSystemConfig: cfg)
+
+        var handler: ProgressUpdateHandler?
+        if let progress {
+            let state = PullProgressState()
+            handler = { events in progress(await state.apply(events)) }
+        }
+
+        let image = try await ClientImage.pull(reference: normalized, containerSystemConfig: cfg, progressUpdate: handler)
         // Let unpack failures (disk full, missing platform variant, …) surface to
         // the UI — a "pulled" image that didn't unpack only fails later at run.
-        try await image.unpack(platform: nil)
+        try await image.unpack(platform: nil, progressUpdate: handler)
     }
 
     func deleteImage(reference: String) async throws {

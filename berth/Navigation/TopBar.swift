@@ -16,7 +16,7 @@ struct TopBar: View {
         HStack(spacing: 14) {
             // Breadcrumb: host / current section
             HStack(spacing: 8) {
-                Text(ProcessInfo.processInfo.hostName.replacingOccurrences(of: ".local", with: ""))
+                Text(DisplayHost.name)
                     .foregroundStyle(Theme.textTertiary)
                 Text("/").foregroundStyle(Theme.textFaint)
                 Text(model.selection.title).foregroundStyle(Theme.textSecondary)
@@ -26,7 +26,9 @@ struct TopBar: View {
 
             Spacer(minLength: 12)
 
-            searchField
+            if let placeholder = model.selection.searchPlaceholder {
+                searchField(placeholder)
+            }
 
             AccentButton(title: "Run", systemImage: "play.fill") {
                 model.showRunSheet = true
@@ -38,13 +40,13 @@ struct TopBar: View {
         .background(Theme.toolbar)
     }
 
-    private var searchField: some View {
+    private func searchField(_ placeholder: String) -> some View {
         @Bindable var model = model
         return HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textTertiary)
-            TextField("Search containers, images…", text: $model.search)
+            TextField(placeholder, text: $model.search)
                 .textFieldStyle(.plain)
                 .font(.berthSans(12))
                 .foregroundStyle(Theme.textPrimary)

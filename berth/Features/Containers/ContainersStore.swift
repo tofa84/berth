@@ -19,6 +19,8 @@ final class ContainersStore {
     var selectedID: String?
     var actionError: String?
     var busyIDs: Set<String> = []
+    /// In-flight flag for whole-list operations (prune); per-row work uses busyIDs.
+    var busy = false
 
     private let service: ContainerService
     private unowned let app: AppModel
@@ -38,8 +40,19 @@ final class ContainersStore {
         }
     }
 
+    /// The filtered list further narrowed by the global search query (id / image).
+    func displayed(matching query: String) -> [ContainerSnapshot] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return filtered }
+        return filtered.filter {
+            $0.id.lowercased().contains(q) || $0.imageReference.lowercased().contains(q)
+        }
+    }
+
     var runningCount: Int { all.filter { $0.status == .running }.count }
     var totalCount: Int { all.count }
+    /// Containers eligible for "Prune stopped" — anything not currently running.
+    var stoppedCount: Int { all.filter { $0.status != .running }.count }
 
     var subtitle: String {
         "\(totalCount) total · \(runningCount) running · click a row to inspect"
@@ -71,10 +84,14 @@ final class ContainersStore {
     func pruneStopped() async {
         let stopped = all.filter { $0.status != .running }.map(\.id)
         actionError = nil
+        busy = true
+        defer { busy = false }
+        var failures: [String] = []
         for id in stopped {
             do { try await service.deleteContainer(id: id, force: true) }
-            catch { actionError = Self.msg(error) }
+            catch { failures.append("\(id): \(Self.msg(error))") }
         }
+        actionError = pruneSummary(failures, of: stopped.count, noun: "containers")
         await load()
     }
 

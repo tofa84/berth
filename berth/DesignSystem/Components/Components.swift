@@ -105,6 +105,7 @@ struct SecondaryButton: View {
     var systemImage: String? = nil
     var role: ButtonRole? = nil
     let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Button(action: action) {
@@ -121,6 +122,7 @@ struct SecondaryButton: View {
                 .stroke(role == .destructive ? Theme.red.opacity(0.25) : Theme.borderStrong, lineWidth: 1))
         }
         .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.4)
     }
 }
 

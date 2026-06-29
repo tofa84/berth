@@ -105,16 +105,18 @@ struct SidebarView: View {
                     .font(.berthMono(11))
                     .foregroundStyle(running ? Theme.green : Theme.red)
             }
-            HStack(spacing: 8) {
-                Text(ProcessInfo.processInfo.hostName)
-                    .font(.berthMono(11))
-                    .foregroundStyle(Theme.textTertiary)
+            // Host name and machine spec stack vertically so the (often long)
+            // host name gets the card's full width instead of being clipped.
+            VStack(alignment: .leading, spacing: 2) {
+                Text(hostName)
                     .lineLimit(1)
-                Spacer()
+                    .truncationMode(.middle)
+                    .help(hostName)
                 Text(machineSummary)
-                    .font(.berthMono(11))
-                    .foregroundStyle(Theme.textTertiary)
             }
+            .font(.berthMono(11))
+            .foregroundStyle(Theme.textTertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 12).padding(.vertical, 11)
         .frame(maxWidth: .infinity)
@@ -122,6 +124,9 @@ struct SidebarView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
     }
+
+    /// Local host name (masked by ``DisplayHost.placeholder`` when set).
+    private var hostName: String { DisplayHost.name }
 
     private var machineSummary: String {
         let cores = ProcessInfo.processInfo.processorCount

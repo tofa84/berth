@@ -56,7 +56,7 @@ struct DashboardScreen: View {
                     Rectangle().fill(Theme.border).frame(width: 1, height: 88)
                     VStack(alignment: .leading, spacing: 9) {
                         HStack {
-                            Text("CPU · last 60s").font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
+                            Text("CPU · last 2 min").font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
                             Spacer()
                             Text(String(format: "peak %.0f%%", (s.cpuHistory.max() ?? 0) * Double(s.totalCores) * 100))
                                 .font(.berthMono(11)).foregroundStyle(Theme.textTertiary)

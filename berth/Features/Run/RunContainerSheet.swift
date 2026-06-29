@@ -31,6 +31,13 @@ struct RunContainerSheet: View {
         }
         .frame(width: 580, height: 620)
         .background(Theme.bg)
+        .onAppear {
+            // Launched from the Images screen with a chosen image — pre-fill once.
+            if let img = model.runPrefillImage {
+                form.image = img
+                model.runPrefillImage = nil
+            }
+        }
     }
 
     private var header: some View {
@@ -146,6 +153,9 @@ struct RunContainerSheet: View {
                 Task {
                     if await form.run() {
                         await model.containers.load()
+                        // Surface the freshly-started container regardless of where
+                        // Run was launched from (Images screen, top bar, …).
+                        model.selection = .containers
                         dismiss()
                     }
                 }

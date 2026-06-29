@@ -10,6 +10,7 @@ struct NetworksScreen: View {
     @Environment(AppModel.self) private var model
     @State private var showCreate = false
     @State private var newName = ""
+    @State private var pendingDelete: String?
 
     private let cols = (driver: 90.0, subnet: 160.0, gateway: 150.0, containers: 90.0, actions: 44.0)
 
@@ -33,11 +34,17 @@ struct NetworksScreen: View {
                 if store.all.isEmpty {
                     CenteredMessage(systemImage: "network", title: "No networks", message: "Create a network to connect containers.", actionTitle: "Create network") { showCreate = true }
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(store.all) { n in
-                                row(n, store)
-                                Divider().overlay(Theme.border)
+                    let shown = store.displayed(matching: model.search)
+                    if shown.isEmpty {
+                        CenteredMessage(systemImage: "magnifyingglass", title: "No matching networks",
+                                        message: "No network matches the current search.")
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(shown) { n in
+                                    row(n, store)
+                                    Divider().overlay(Theme.border)
+                                }
                             }
                         }
                     }
@@ -46,8 +53,20 @@ struct NetworksScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .bottom) { if let e = store.actionError { ErrorToast(text: e) } }
-        .task { await store.load() }
+        .task(id: model.engine.epoch) { await store.load() }
         .sheet(isPresented: $showCreate) { createSheet(store) }
+        .confirmationDialog("Delete network?",
+                            isPresented: Binding(get: { pendingDelete != nil },
+                                                 set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let id = pendingDelete { Task { await store.delete(id) } }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("Removes the network. Containers must be detached first.")
+        }
     }
 
     private func subtitle(_ s: NetworksStore) -> String {
@@ -89,7 +108,7 @@ struct NetworksScreen: View {
                     Spacer().frame(width: cols.actions)
                 } else {
                     Menu {
-                        Button("Delete", role: .destructive) { Task { await store.delete(n.id) } }
+                        Button("Delete", role: .destructive) { pendingDelete = n.id }
                     } label: {
                         Image(systemName: "ellipsis").font(.system(size: 14)).foregroundStyle(Theme.textTertiary)
                             .frame(width: cols.actions, height: 28)

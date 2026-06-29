@@ -24,6 +24,15 @@ final class RegistriesStore {
 
     var all: [ContainerResource.RegistryResource] { state.value ?? [] }
 
+    /// The list narrowed by the global search query (host / username).
+    func displayed(matching query: String) -> [ContainerResource.RegistryResource] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return all }
+        return all.filter {
+            $0.name.lowercased().contains(q) || $0.username.lowercased().contains(q)
+        }
+    }
+
     func load() async {
         if case .idle = state { state = .loading }
         do {

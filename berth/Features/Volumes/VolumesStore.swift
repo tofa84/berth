@@ -28,6 +28,15 @@ final class VolumesStore {
 
     func usedBy(_ volume: VolumeConfiguration) -> Int { usage[volume.name] ?? 0 }
 
+    /// The list narrowed by the global search query (name / mount point).
+    func displayed(matching query: String) -> [VolumeConfiguration] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !q.isEmpty else { return all }
+        return all.filter {
+            $0.name.lowercased().contains(q) || $0.mountPoint.lowercased().contains(q)
+        }
+    }
+
     func load() async {
         if case .idle = state { state = .loading }
         do {
@@ -35,12 +44,15 @@ final class VolumesStore {
             async let containersCall = service.listContainers()
             let volumes = try await volumesCall
             let containers = try await containersCall
-            usage = [:]
+            // Count distinct containers per volume — a container that mounts the
+            // same named volume at two paths must still count as one user.
+            var refs: [String: Set<String>] = [:]
             for c in containers {
                 for m in c.configuration.mounts {
-                    if let name = m.volumeName { usage[name, default: 0] += 1 }
+                    if let name = m.volumeName { refs[name, default: []].insert(c.id) }
                 }
             }
+            usage = refs.mapValues(\.count)
             state = .loaded(volumes.sorted { $0.name < $1.name })
             app.counts[.volumes] = volumes.count
         } catch {
@@ -63,10 +75,12 @@ final class VolumesStore {
         actionError = nil
         busy = true
         defer { busy = false }
+        var failures: [String] = []
         for name in unused {
             do { try await service.deleteVolume(name: name) }
-            catch { actionError = Self.msg(error) }
+            catch { failures.append("\(name): \(Self.msg(error))") }
         }
+        actionError = pruneSummary(failures, of: unused.count, noun: "volumes")
         await load()
     }
 

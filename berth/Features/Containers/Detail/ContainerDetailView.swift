@@ -12,6 +12,7 @@ struct ContainerDetailView: View {
     let containerID: String
     @State private var tab: DetailTab = .overview
     @State private var streams = ContainerStreams()
+    @State private var confirmDelete = false
 
     enum DetailTab: String, CaseIterable {
         case overview = "Overview", logs = "Logs", stats = "Stats", inspect = "Inspect"
@@ -35,6 +36,12 @@ struct ContainerDetailView: View {
                 }
             }
             .onDisappear { streams.stopAll() }
+            .confirmationDialog("Delete container?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) { Task { await store.delete(c.id) } }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Forcibly removes the container — a running container is killed first.")
+            }
         } else {
             CenteredMessage(systemImage: "questionmark.square.dashed",
                             title: "Container not found",
@@ -74,7 +81,7 @@ struct ContainerDetailView: View {
                 AccentButton(title: "Start", systemImage: "play.fill") { Task { await store.start(c.id) } }
             }
             SecondaryButton(title: "Restart", systemImage: "arrow.clockwise") { Task { await store.restart(c.id) } }
-            SecondaryButton(title: "Delete", systemImage: "trash", role: .destructive) { Task { await store.delete(c.id) } }
+            SecondaryButton(title: "Delete", systemImage: "trash", role: .destructive) { confirmDelete = true }
         }
         .padding(.horizontal, 22).padding(.vertical, 14)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
@@ -174,7 +181,7 @@ struct ContainerDetailView: View {
             Card {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        SectionCaption(text: "CPU · last 60s")
+                        SectionCaption(text: "CPU · last 90s")
                         Spacer()
                         Text(String(format: "peak %.1f%%", (streams.cpuHistory.max() ?? 0) * streams.coresForDisplay * 100))
                             .font(.berthMono(11)).foregroundStyle(Theme.textTertiary)
@@ -187,7 +194,7 @@ struct ContainerDetailView: View {
 
     private func overview(_ c: ContainerSnapshot) -> some View {
         let attach = c.networks.first
-        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+        return LazyVGrid(columns: [GridItem(.flexible(), spacing: 14, alignment: .top), GridItem(.flexible(), spacing: 14, alignment: .top)], spacing: 14) {
             InfoCard(title: "Configuration") {
                 KeyValue("Image", c.imageReference)
                 KeyValue("Command", c.command)

@@ -23,6 +23,8 @@ final class ContainerStreams {
     private(set) var logs: [LogEntry] = []
     var follow = true
     private var logTask: Task<Void, Never>?
+    private var flushTask: Task<Void, Never>?
+    private var pending: [LogEntry] = []
     private var logSeq = 0
     private let logCap = 500
 
@@ -41,20 +43,43 @@ final class ContainerStreams {
     func startLogs(id: String, service: ContainerService) {
         guard logTask == nil else { return }
         logs.removeAll()
+        pending.removeAll()
         logSeq = 0
         logTask = Task { [weak self] in
             for await line in service.logStream(id: id) {
                 if Task.isCancelled { break }
-                self?.append(line)
+                self?.enqueue(line)
+            }
+        }
+        // Coalesce bursts: incoming lines accumulate in `pending` and are published
+        // to the observed `logs` array on a fixed cadence. Appending per line would
+        // mutate `logs` many times within a single frame, making the detail view's
+        // `onChange(of: logs.count)` auto-scroll fire — and re-enter ScrollView
+        // layout — repeatedly per frame (the "update multiple times per frame" and
+        // "layoutSubtreeIfNeeded ... already being laid out" warnings).
+        flushTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                self?.flush()
             }
         }
     }
 
-    func stopLogs() { logTask?.cancel(); logTask = nil }
+    func stopLogs() {
+        logTask?.cancel(); logTask = nil
+        flushTask?.cancel(); flushTask = nil
+        flush()
+    }
 
-    private func append(_ line: LogLine) {
+    private func enqueue(_ line: LogLine) {
         logSeq += 1
-        logs.append(LogEntry(id: logSeq, text: line.text, kind: line.kind))
+        pending.append(LogEntry(id: logSeq, text: line.text, kind: line.kind))
+    }
+
+    private func flush() {
+        guard !pending.isEmpty else { return }
+        logs.append(contentsOf: pending)
+        pending.removeAll(keepingCapacity: true)
         if logs.count > logCap { logs.removeFirst(logs.count - logCap) }
     }
 

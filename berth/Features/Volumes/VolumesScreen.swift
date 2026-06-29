@@ -11,6 +11,7 @@ struct VolumesScreen: View {
     @State private var showCreate = false
     @State private var newName = ""
     @State private var newSize = ""
+    @State private var pendingDelete: String?
 
     private let cols = (driver: 90.0, size: 90.0, mount: 220.0, used: 70.0, created: 110.0, actions: 44.0)
 
@@ -38,11 +39,17 @@ struct VolumesScreen: View {
                 if store.all.isEmpty {
                     CenteredMessage(systemImage: "cylinder", title: "No volumes", message: "Create a volume to persist data.", actionTitle: "Create volume") { showCreate = true }
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(store.all) { v in
-                                row(v, store)
-                                Divider().overlay(Theme.border)
+                    let shown = store.displayed(matching: model.search)
+                    if shown.isEmpty {
+                        CenteredMessage(systemImage: "magnifyingglass", title: "No matching volumes",
+                                        message: "No volume matches the current search.")
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(shown) { v in
+                                    row(v, store)
+                                    Divider().overlay(Theme.border)
+                                }
                             }
                         }
                     }
@@ -51,8 +58,20 @@ struct VolumesScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .bottom) { if let e = store.actionError { ErrorToast(text: e) } }
-        .task { await store.load() }
+        .task(id: model.engine.epoch) { await store.load() }
         .sheet(isPresented: $showCreate) { createSheet(store) }
+        .confirmationDialog("Delete volume?",
+                            isPresented: Binding(get: { pendingDelete != nil },
+                                                 set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                if let name = pendingDelete { Task { await store.delete(name) } }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        } message: {
+            Text("Permanently deletes the volume and all data stored in it.")
+        }
     }
 
     private var header: some View {
@@ -87,7 +106,7 @@ struct VolumesScreen: View {
             mono(store.usedBy(v) == 0 ? "—" : "\(store.usedBy(v))", cols.used)
             mono(Format.relative(v.creationDate), cols.created)
             Menu {
-                Button("Delete", role: .destructive) { Task { await store.delete(v.name) } }
+                Button("Delete", role: .destructive) { pendingDelete = v.name }
             } label: {
                 Image(systemName: "ellipsis").font(.system(size: 14)).foregroundStyle(Theme.textTertiary)
                     .frame(width: cols.actions, height: 28)

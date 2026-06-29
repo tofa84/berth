@@ -82,8 +82,11 @@ enum SystemControl {
         proc.waitUntilExit()
 
         if proc.terminationStatus != 0 {
-            let msg = String(data: errBox.value, encoding: .utf8) ?? "exit \(proc.terminationStatus)"
-            throw SystemControlError.commandFailed(msg.trimmingCharacters(in: .whitespacesAndNewlines))
+            // Empty stderr decodes to "" (not nil), so the nil-coalesce never
+            // fires for the common no-stderr case — fall back on the trimmed result.
+            let raw = (String(data: errBox.value, encoding: .utf8) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw SystemControlError.commandFailed(raw.isEmpty ? "exit \(proc.terminationStatus)" : raw)
         }
         return String(data: outBox.value, encoding: .utf8) ?? ""
     }

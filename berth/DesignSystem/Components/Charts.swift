@@ -79,6 +79,9 @@ struct MetricTile: View {
                     Text(footnote).font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
                 }
             }
+            // Fill the grid row's height so tiles with a footnote (e.g. Memory)
+            // don't make their row taller than the footnote-less tiles.
+            .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 }

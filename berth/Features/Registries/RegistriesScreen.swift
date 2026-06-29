@@ -35,11 +35,17 @@ struct RegistriesScreen: View {
                                     message: "Add a registry login to pull and push private images.",
                                     actionTitle: "Add login") { showAdd = true }
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(store.all) { reg in
-                                row(reg, store)
-                                Divider().overlay(Theme.border)
+                    let shown = store.displayed(matching: model.search)
+                    if shown.isEmpty {
+                        CenteredMessage(systemImage: "magnifyingglass", title: "No matching registries",
+                                        message: "No login matches the current search.")
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 0) {
+                                ForEach(shown) { reg in
+                                    row(reg, store)
+                                    Divider().overlay(Theme.border)
+                                }
                             }
                         }
                     }
@@ -50,6 +56,11 @@ struct RegistriesScreen: View {
         .overlay(alignment: .bottom) { if let e = store.actionError { ErrorToast(text: e) } }
         .task { await store.load() }
         .sheet(isPresented: $showAdd) { addSheet(store) }
+        // Discard typed credentials (incl. the password) when the sheet closes —
+        // success clears them too, but Cancel/dismiss must not retain them.
+        .onChange(of: showAdd) { _, presented in
+            if !presented { host = ""; username = ""; password = "" }
+        }
     }
 
     private func row(_ reg: ContainerResource.RegistryResource, _ store: RegistriesStore) -> some View {
