@@ -42,7 +42,7 @@ berth covers the day-to-day container workflow across eight screens:
 
 A **global search** box filters containers, images, volumes, networks and registries from anywhere.
 
-> **Builds** is the one screen still on the roadmap — image building uses a separate gRPC `container-builder-shim` path and is currently a placeholder.
+> **Builds** is not yet implemented — image building uses a separate gRPC `container-builder-shim` path and is currently a placeholder.
 
 ### A closer look
 
@@ -123,11 +123,6 @@ berth/
 ```
 
 The Xcode project uses a **file-system-synchronized group**: any file added under `berth/` automatically joins the target.
-
-## Roadmap
-
-- **Builds** — wire up image building via the gRPC `container-builder-shim`.
-- An interactive **exec terminal** (the client API already exposes the PTY pieces).
 
 ## Acknowledgements
 
