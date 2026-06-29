@@ -15,7 +15,6 @@ struct berthApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .preferredColorScheme(.dark)
                 .task {
                     #if DEBUG
                     if SelfTest.isEnabled { await SelfTest.run(model); exit(0) }

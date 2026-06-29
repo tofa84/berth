@@ -237,6 +237,6 @@ struct ErrorToast: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.red.opacity(0.3), lineWidth: 1))
         .padding(.bottom, 16)
-        .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
+        .shadow(color: Theme.cardShadow, radius: 12, y: 4)
     }
 }

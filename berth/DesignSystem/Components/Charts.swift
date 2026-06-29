@@ -45,7 +45,7 @@ struct DonutGauge: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
-                Circle().stroke(Color.white.opacity(0.07), lineWidth: 8)
+                Circle().stroke(Theme.chartTrack, lineWidth: 8)
                 Circle()
                     .trim(from: 0, to: min(1, max(0, fraction)))
                     .stroke(color, style: StrokeStyle(lineWidth: 8, lineCap: .round))
