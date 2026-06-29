@@ -43,7 +43,7 @@ struct SidebarView: View {
                 .font(.berthMono(16, .semibold))
                 .foregroundStyle(Theme.textPrimary)
             Spacer()
-            Text(model.engine.version ?? EngineConnection.pinnedVersion)
+            Text(Self.appVersion)
                 .font(.berthMono(9.5))
                 .foregroundStyle(Theme.textMuted)
                 .padding(.horizontal, 6).padding(.vertical, 2)
@@ -51,6 +51,11 @@ struct SidebarView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         }
     }
+
+    /// The app's own marketing version (CFBundleShortVersionString), e.g. "1.1.0".
+    /// The engine/apiserver version lives on the System screen, not here.
+    private static let appVersion =
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
 
     // MARK: Nav row
 
