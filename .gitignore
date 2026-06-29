@@ -14,5 +14,8 @@ build/
 # macOS
 .DS_Store
 
+# Release output (built locally by scripts/release.sh)
+dist/
+
 # Local agent notes (not part of the project)
 CLAUDE.md

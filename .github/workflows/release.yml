@@ -1,0 +1,85 @@
+name: Release
+
+# Build an ad-hoc-signed berth.app, pack it into a DMG, and attach it to a
+# GitHub release. No Developer ID / notarization — so no signing secrets needed.
+#
+# Triggers:
+#   • push a tag  vX.Y.Z   → builds and publishes the release for that tag
+#   • manual run (Actions ▸ Release ▸ Run workflow) → enter a version; the
+#     workflow creates the tag and the release for you.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Marketing version, e.g. 1.1.0 (no leading v)'
+        required: true
+
+permissions:
+  contents: write          # needed for gh release create / tag push
+
+jobs:
+  release:
+    runs-on: macos-26      # GA since 2026-02; Apple Silicon, Xcode 26 preinstalled
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history → correct build number (git rev-list --count)
+
+      - name: Select Xcode 26 and show toolchain
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          swift --version
+
+      # Speed up repeat builds: cache resolved SwiftPM dependencies
+      # (apple/container pulls containerization + swift-nio, which are heavy).
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-${{ hashFiles('berth.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Resolve version
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            V="${GITHUB_REF_NAME#v}"          # tag vX.Y.Z → X.Y.Z
+          else
+            V="${{ github.event.inputs.version }}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Building berth $V"
+
+      - name: Build app + DMG
+        run: bash scripts/release.sh "${{ steps.v.outputs.version }}"
+
+      - name: Upload DMG as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: berth-${{ steps.v.outputs.version }}-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v${{ steps.v.outputs.version }}"
+          # On a manual run the tag may not exist yet — create and push it.
+          # (Pushing with GITHUB_TOKEN does NOT re-trigger this workflow.)
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.dmg --clobber
+          else
+            gh release create "$TAG" dist/*.dmg \
+              --title "berth ${{ steps.v.outputs.version }}" \
+              --generate-notes
+          fi
