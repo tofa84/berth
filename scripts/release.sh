@@ -89,6 +89,9 @@ mkdir -p "$DIST"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"      # drag-to-install target
+# Carry third-party license texts alongside the app (Apache-2.0 §4 / MIT / BSD).
+[[ -f "$REPO_ROOT/THIRD_PARTY_LICENSES.txt" ]] && cp "$REPO_ROOT/THIRD_PARTY_LICENSES.txt" "$STAGE/"
+[[ -f "$REPO_ROOT/LICENSE" ]] && cp "$REPO_ROOT/LICENSE" "$STAGE/"
 
 rm -f "$DMG"
 hdiutil create \

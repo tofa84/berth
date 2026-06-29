@@ -128,6 +128,8 @@ The Xcode project uses a **file-system-synchronized group**: any file added unde
 
 berth is built on Apple's [`container`](https://github.com/apple/container) and [`containerization`](https://github.com/apple/containerization) projects (Apache-2.0). It is an independent, community project and is **not affiliated with or endorsed by Apple**.
 
+berth bundles its Swift Package dependencies (Apache-2.0, MIT and BSD-licensed) into the shipped binary. The full license and NOTICE texts for every dependency are reproduced in [`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt), which is also included next to the app in each DMG release. Regenerate it after changing dependencies with `python3 scripts/generate-third-party-licenses.py`.
+
 ## License
 
 [MIT](LICENSE)
