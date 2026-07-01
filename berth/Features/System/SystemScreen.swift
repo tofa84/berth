@@ -19,10 +19,16 @@ struct SystemScreen: View {
 
                 apiServerCard(store, engine)
 
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+                // Two equal columns. Explicit top-aligned HStacks (rather than a
+                // LazyVGrid, which centers cells and sizes rows to intrinsic content)
+                // so paired cards share the same top edge, width, and height.
+                HStack(alignment: .top, spacing: 14) {
                     storageCard(store)
                     pathsCard(engine)
+                }
+                HStack(alignment: .top, spacing: 14) {
                     hostCard()
+                    Color.clear   // keeps the lone Host card at half width
                 }
             }
             .padding(22)
@@ -71,7 +77,7 @@ struct SystemScreen: View {
     }
 
     private func storageCard(_ store: SystemStore) -> some View {
-        InfoCard(title: "Storage") {
+        InfoCard(title: "Storage", fill: true) {
             KeyValue("Images", Format.bytes(store.imageSize))
             KeyValue("Volumes", Format.bytes(store.volumeSize))
             KeyValue("Reclaimable", Format.bytes(store.reclaimable))
@@ -83,7 +89,7 @@ struct SystemScreen: View {
     }
 
     private func pathsCard(_ engine: EngineConnection) -> some View {
-        InfoCard(title: "Paths") {
+        InfoCard(title: "Paths", fill: true) {
             if let h = engine.health {
                 KeyValue("App root", h.appRoot.path)
                 KeyValue("Install root", h.installRoot.path)
