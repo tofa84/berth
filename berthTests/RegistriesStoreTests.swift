@@ -52,11 +52,11 @@ struct RegistriesStoreTests {
     @Test func searchMatchesHostOrUsername() async {
         fake.registries = [
             Fixtures.registry(host: "ghcr.io", username: "octocat"),
-            Fixtures.registry(host: "docker.io", username: "falco"),
+            Fixtures.registry(host: "docker.io", username: "alice"),
         ]
         await store.load()
         #expect(store.displayed(matching: "GHCR").count == 1)
-        #expect(store.displayed(matching: "falco").count == 1)
+        #expect(store.displayed(matching: "alice").count == 1)
         #expect(store.displayed(matching: "").count == 2)
     }
 }
