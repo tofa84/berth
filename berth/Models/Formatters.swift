@@ -4,21 +4,25 @@
 //
 //  Pure formatting helpers (bytes, durations, dates). No engine access.
 //
+//  Numbers follow the user's locale (one decimal separator everywhere), and
+//  values read as a single token: the space before a unit (GB / MB / %) is a
+//  narrow no-break space. `locale` is injectable so tests can pin exact
+//  strings per locale.
+//
 
 import Foundation
 
 enum Format {
-    /// Human byte size, e.g. 1.2 GB / 320 MB.
-    static func bytes(_ value: UInt64?) -> String {
+    /// Human byte size, e.g. "1.2 GB" (en) / "1,2 GB" (de).
+    static func bytes(_ value: UInt64?, locale: Locale = .autoupdatingCurrent) -> String {
         guard let value else { return "—" }
-        return bytes(Int64(min(value, UInt64(Int64.max))))
+        return bytes(Int64(min(value, UInt64(Int64.max))), locale: locale)
     }
 
-    static func bytes(_ value: Int64) -> String {
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        f.allowedUnits = [.useKB, .useMB, .useGB, .useTB]
-        return f.string(fromByteCount: value)
+    static func bytes(_ value: Int64, locale: Locale = .autoupdatingCurrent) -> String {
+        narrowUnitSpace(value.formatted(
+            .byteCount(style: .file, allowedUnits: [.kb, .mb, .gb, .tb], spellsOutZero: true)
+            .locale(locale)))
     }
 
     /// Compact uptime since a start date, e.g. "5h 14m", "3d 2h", "just now".
@@ -43,9 +47,25 @@ enum Format {
         return f.localizedString(for: date, relativeTo: now)
     }
 
-    /// Short percentage from a 0...1 fraction.
-    static func percent(_ fraction: Double) -> String {
-        "\(Int((fraction * 100).rounded()))%"
+    /// Short percentage from a 0...1 fraction, e.g. "43%" (en) / "43 %" (de).
+    static func percent(_ fraction: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        percent(points: fraction * 100, digits: 0, locale: locale)
+    }
+
+    /// Percentage from percent points (0.8 → "0.8%" en / "0,8 %" de). Points may
+    /// exceed 100 — CPU load is summed across containers/cores.
+    static func percent(points: Double, digits: Int = 1, locale: Locale = .autoupdatingCurrent) -> String {
+        narrowUnitSpace((points / 100).formatted(
+            .percent.precision(.fractionLength(digits)).locale(locale)))
+    }
+
+    /// Replace the space separating a value from its trailing unit with a
+    /// narrow no-break space. Only the last (no-break) space is touched, so
+    /// grouping separators inside the number survive; idempotent when the
+    /// formatter already emitted a narrow space.
+    static func narrowUnitSpace(_ s: String) -> String {
+        guard let idx = s.lastIndex(where: { $0 == " " || $0 == "\u{00A0}" || $0 == "\u{202F}" }) else { return s }
+        return s.replacingCharacters(in: idx...idx, with: "\u{202F}")
     }
 
     /// One user-facing line for an error: the LocalizedError description when

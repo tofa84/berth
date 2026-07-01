@@ -17,6 +17,8 @@ final class ContainerStreams {
         let id: Int
         let text: String
         let kind: LogKind
+        /// Split once at ingest (under the line cap), not per render pass.
+        let parsed: ParsedLogLine
     }
 
     // Logs
@@ -73,7 +75,8 @@ final class ContainerStreams {
 
     private func enqueue(_ line: LogLine) {
         logSeq += 1
-        pending.append(LogEntry(id: logSeq, text: line.text, kind: line.kind))
+        pending.append(LogEntry(id: logSeq, text: line.text, kind: line.kind,
+                                parsed: LogFormat.parse(line.text, kind: line.kind)))
     }
 
     private func flush() {

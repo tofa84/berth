@@ -106,7 +106,7 @@ struct SystemScreen: View {
         return InfoCard(title: "Host") {
             KeyValue("Hostname", DisplayHost.name)
             KeyValue("CPU cores", "\(info.processorCount)")
-            KeyValue("Memory", "\(gb) GB")
+            KeyValue("Memory", "\(gb)\u{202F}GB")
             KeyValue("macOS", info.operatingSystemVersionString)
         }
     }

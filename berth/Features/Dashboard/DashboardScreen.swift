@@ -8,6 +8,7 @@ import ContainerResource
 
 struct DashboardScreen: View {
     @Environment(AppModel.self) private var model
+    @State private var confirmCleanUp = false
 
     var body: some View {
         let store = model.dashboard
@@ -25,6 +26,16 @@ struct DashboardScreen: View {
             .padding(22)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay(alignment: .bottom) { if let e = store.actionError { ErrorToast(text: e) } }
+        .confirmationDialog("Clean up reclaimable data?",
+                            isPresented: $confirmCleanUp, titleVisibility: .visible) {
+            Button("Delete unused images", role: .destructive) {
+                Task { await store.cleanUp() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Permanently removes every image not used by a container and reclaims orphaned data — frees about \(Format.bytes(store.reclaimable)).")
+        }
         .task { store.start() }
         .onDisappear { store.stop() }
     }
@@ -34,7 +45,11 @@ struct DashboardScreen: View {
             MetricTile(label: "Running", value: "\(s.running) / \(s.total)", footnote: "containers active")
             MetricTile(label: "Images", value: "\(s.imageCount)", footnote: "\(Format.bytes(s.imageSize)) on disk")
             MetricTile(label: "Volumes", value: "\(s.volumeCount)", footnote: "\(Format.bytes(s.volumeSize)) on disk")
-            MetricTile(label: "Reclaimable", value: Format.bytes(s.reclaimable), accent: Theme.accent, footnote: "system df · prune")
+            MetricTile(label: "Reclaimable", value: Format.bytes(s.reclaimable),
+                       footnote: "system df",
+                       footnoteAction: s.reclaimable == 0 || s.pruning
+                           ? nil
+                           : ("· Clean up →", { confirmCleanUp = true }))
         }
     }
 
@@ -49,7 +64,7 @@ struct DashboardScreen: View {
                 }
                 HStack(spacing: 30) {
                     DonutGauge(fraction: s.cpuFraction, label: "CPU",
-                               detail: String(format: "%.0f%% · %d cores", s.cpuPercent, s.totalCores))
+                               detail: "\(Format.percent(points: s.cpuPercent, digits: 0)) · \(s.totalCores) cores")
                     DonutGauge(fraction: s.memFraction, label: "Memory",
                                detail: "\(Format.bytes(s.memUsed)) / \(Format.bytes(s.memLimit))",
                                color: Theme.blue)
@@ -58,7 +73,7 @@ struct DashboardScreen: View {
                         HStack {
                             Text("CPU · last 2 min").font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
                             Spacer()
-                            Text(String(format: "peak %.0f%%", (s.cpuHistory.max() ?? 0) * Double(s.totalCores) * 100))
+                            Text("peak \(Format.percent(points: (s.cpuHistory.max() ?? 0) * Double(s.totalCores) * 100, digits: 0))")
                                 .font(.berthMono(11)).foregroundStyle(Theme.textTertiary)
                         }
                         BarChart(values: s.cpuHistory, height: 62, slots: 60)
@@ -94,7 +109,7 @@ struct DashboardScreen: View {
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 1) {
-                                    Text(String(format: "%.1f%%", s.perStats[c.id]?.cpu ?? 0)).font(.berthMono(12)).foregroundStyle(Theme.textSecondary)
+                                    Text(Format.percent(points: s.perStats[c.id]?.cpu ?? 0)).font(.berthMono(12)).foregroundStyle(Theme.textSecondary)
                                     Text(Format.bytes(s.perStats[c.id]?.mem)).font(.berthMono(10.5)).foregroundStyle(Theme.textTertiary)
                                 }
                             }

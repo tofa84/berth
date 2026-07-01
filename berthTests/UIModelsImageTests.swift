@@ -51,6 +51,38 @@ struct UIModelsImageTests {
         #expect(img.platformsText == "linux/arm64")
     }
 
+    @Test func archSummaryDropsLinuxPrefix() {
+        let img = Fixtures.image(variants: [
+            Fixtures.VariantSpec(os: "linux", arch: "amd64", variant: nil),
+            Fixtures.VariantSpec(os: "linux", arch: "arm64", variant: "v8"),
+        ])
+        #expect(img.archSummaryText == "amd64 · arm64")
+    }
+
+    @Test func archSummaryKeepsNonLinuxOS() {
+        let img = Fixtures.image(variants: [
+            Fixtures.VariantSpec(os: "windows", arch: "amd64", variant: nil),
+            Fixtures.VariantSpec(os: "linux", arch: "arm64", variant: "v8"),
+        ])
+        #expect(img.archSummaryText == "windows/amd64 · arm64")
+    }
+
+    @Test func archSummaryDropsUnknownAndDedupes() {
+        let img = Fixtures.image(variants: [
+            Fixtures.VariantSpec(os: "linux", arch: "arm64", variant: "v8"),
+            Fixtures.VariantSpec(os: "linux", arch: "arm64", variant: "v7"),   // same arch → deduped
+            Fixtures.VariantSpec(os: "unknown", arch: "unknown", variant: nil),
+        ])
+        #expect(img.archSummaryText == "arm64")
+    }
+
+    @Test func archSummaryEmptyFallsBackToDash() {
+        let img = Fixtures.image(variants: [
+            Fixtures.VariantSpec(os: "unknown", arch: "unknown", variant: nil),
+        ])
+        #expect(img.archSummaryText == "—")
+    }
+
     @Test func totalSizeAndMultiArch() {
         let img = Fixtures.image(variants: [
             Fixtures.VariantSpec(arch: "arm64", size: 100),

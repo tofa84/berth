@@ -3,8 +3,9 @@
 //  berthTests
 //
 //  `Format.*` are pure. `uptime`/`relative` take an injectable `now` for
-//  determinism; `bytes`/`relative` delegate to locale-dependent system
-//  formatters, so those are asserted on structure (not exact strings).
+//  determinism; `bytes`/`percent` take an injectable `locale` so exact
+//  strings can be pinned per locale (the current-locale defaults are only
+//  asserted structurally).
 //
 
 import Testing
@@ -12,12 +13,36 @@ import Foundation
 @testable import berth
 
 struct FormattersTests {
+    private let en = Locale(identifier: "en_US")
+    private let de = Locale(identifier: "de_DE")
 
-    @Test func percent() {
-        #expect(Format.percent(0.0) == "0%")
-        #expect(Format.percent(0.5) == "50%")
-        #expect(Format.percent(0.996) == "100%")   // rounds up
-        #expect(Format.percent(1.0) == "100%")
+    @Test func percentFraction() {
+        #expect(Format.percent(0.0, locale: en) == "0%")
+        #expect(Format.percent(0.5, locale: en) == "50%")
+        #expect(Format.percent(0.996, locale: en) == "100%")   // rounds up
+        #expect(Format.percent(1.0, locale: en) == "100%")
+        // German separates the unit — with a narrow no-break space.
+        #expect(Format.percent(0.5, locale: de) == "50\u{202F}%")
+    }
+
+    @Test func percentPoints() {
+        #expect(Format.percent(points: 0.8, locale: en) == "0.8%")
+        #expect(Format.percent(points: 1.0, locale: en) == "1.0%")
+        #expect(Format.percent(points: 0.8, locale: de) == "0,8\u{202F}%")
+        #expect(Format.percent(points: 0, locale: de) == "0,0\u{202F}%")
+        // Aggregate CPU may exceed 100 points (summed across containers).
+        #expect(Format.percent(points: 450, digits: 0, locale: en) == "450%")
+    }
+
+    @Test func narrowUnitSpace() {
+        #expect(Format.narrowUnitSpace("5.2 MB") == "5.2\u{202F}MB")
+        #expect(Format.narrowUnitSpace("50\u{00A0}%") == "50\u{202F}%")
+        // Only the last space is touched; earlier ones survive.
+        #expect(Format.narrowUnitSpace("1 234 MB") == "1 234\u{202F}MB")
+        // Idempotent, and a no-op without any space.
+        #expect(Format.narrowUnitSpace("5.2\u{202F}MB") == "5.2\u{202F}MB")
+        #expect(Format.narrowUnitSpace("100%") == "100%")
+        #expect(Format.narrowUnitSpace("") == "")
     }
 
     @Test func uptimeNil() {
@@ -33,10 +58,12 @@ struct FormattersTests {
         #expect(Format.uptime(since: now.addingTimeInterval(-(3 * 86400 + 2 * 3600)), now: now) == "3d 2h")
     }
 
-    @Test func bytes() {
+    @Test func bytesLocalized() {
         #expect(Format.bytes(nil) == "—")
-        // Non-nil delegates to ByteCountFormatter (locale-dependent): assert it
-        // produced a real, non-dash string.
+        #expect(Format.bytes(Int64(5_200_000), locale: en) == "5.2\u{202F}MB")
+        #expect(Format.bytes(Int64(5_200_000), locale: de) == "5,2\u{202F}MB")
+        #expect(Format.bytes(UInt64(9_970_000_000), locale: de) == "9,97\u{202F}GB")
+        // Current-locale default still produces a real, non-dash string.
         let s = Format.bytes(UInt64(5 * 1024 * 1024))
         #expect(s != "—")
         #expect(!s.isEmpty)
