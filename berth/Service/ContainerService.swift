@@ -124,9 +124,14 @@ actor ContainerService: ContainerServicing {
 
     func volumeSummary() async throws -> VolumeSummary {
         let volumes = try await ClientVolume.list()
-        var total: UInt64 = 0
-        for v in volumes {
-            total += (try? await ClientVolume.volumeDiskUsage(name: v.name)) ?? 0
+        // Query per-volume disk usage concurrently — one serial XPC round-trip
+        // per volume would make this O(n) in latency on volume-heavy setups.
+        let total = await withTaskGroup(of: UInt64.self) { group in
+            for volume in volumes {
+                let name = volume.name
+                group.addTask { (try? await ClientVolume.volumeDiskUsage(name: name)) ?? 0 }
+            }
+            return await group.reduce(0, +)
         }
         return VolumeSummary(count: volumes.count, totalSize: total)
     }

@@ -22,9 +22,9 @@ struct ImagesStoreTests {
     private let store: ImagesStore
 
     init() {
-        app = AppModel()
         fake = FakeContainerService()
-        store = ImagesStore(service: fake, app: app)
+        app = AppModel(service: fake)
+        store = app.images
     }
 
     @Test func usageCountsContainersPerImage() async throws {

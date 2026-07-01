@@ -41,9 +41,8 @@ final class VolumesStore: ResourceStore {
         beginLoading()
         do {
             async let volumesCall = service.listVolumes()
-            async let containersCall = service.listContainers()
+            let containers = try await app.containersFeed.refresh()
             let volumes = try await volumesCall
-            let containers = try await containersCall
             // Count distinct containers per volume — a container that mounts the
             // same named volume at two paths must still count as one user.
             var refs: [String: Set<String>] = [:]

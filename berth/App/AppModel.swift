@@ -13,7 +13,9 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    let service = ContainerService()
+    /// The engine gateway. `ContainerService` in the app; Layer-B tests inject
+    /// a `FakeContainerService` and reach the stores via the lazy accessors.
+    let service: any ContainerServicing
     let engine: EngineConnection
 
     var selection: SidebarItem = .dashboard
@@ -25,6 +27,15 @@ final class AppModel {
 
     /// Optional sidebar badge counts, filled in by feature phases.
     var counts: [SidebarItem: Int] = [:]
+
+    /// Shared single-flight source for the container list (see ContainersFeed).
+    @ObservationIgnored private var _containersFeed: ContainersFeed?
+    var containersFeed: ContainersFeed {
+        if let f = _containersFeed { return f }
+        let f = ContainersFeed(service: service, app: self)
+        _containersFeed = f
+        return f
+    }
 
     // Lazily-created per-screen stores.
     @ObservationIgnored private var _containers: ContainersStore?
@@ -83,7 +94,8 @@ final class AppModel {
         return s
     }
 
-    init() {
+    init(service: any ContainerServicing = ContainerService()) {
+        self.service = service
         engine = EngineConnection(service: service)
     }
 

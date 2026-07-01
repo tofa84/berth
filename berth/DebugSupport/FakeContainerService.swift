@@ -42,17 +42,30 @@ nonisolated final class FakeContainerService: ContainerServicing, @unchecked Sen
     /// Scripted failure messages, keyed like `calls` entries: either the full
     /// "op:key" (fail one target) or just "op" (fail the whole operation).
     var failures: [String: String] = [:]
+    /// Scripted per-op suspensions, keyed by "op" — lets tests force two
+    /// callers to overlap (e.g. the feed's single-flight dedup).
+    var delays: [String: Duration] = [:]
     /// Every service call in order, recorded as "op" or "op:key".
     private(set) var calls: [String] = []
 
     func callCount(_ entry: String) -> Int { calls.filter { $0 == entry }.count }
 
+    /// Recording is lock-protected: task-group fan-outs (the dashboard's
+    /// stats fetch) call the fake from concurrent child tasks.
+    private let lock = NSLock()
+
     private func record(_ op: String, _ key: String? = nil) throws {
         let entry = key.map { "\(op):\($0)" } ?? op
-        calls.append(entry)
-        if let message = failures[entry] ?? failures[op] {
-            throw FakeServiceError(message: message)
+        let message: String? = lock.withLock {
+            calls.append(entry)
+            return failures[entry] ?? failures[op]
         }
+        if let message { throw FakeServiceError(message: message) }
+    }
+
+    private func delayIfScripted(_ op: String) async {
+        guard let delay = lock.withLock({ delays[op] }) else { return }
+        try? await Task.sleep(for: delay)
     }
 
     // MARK: System / health
@@ -66,6 +79,7 @@ nonisolated final class FakeContainerService: ContainerServicing, @unchecked Sen
     // MARK: Containers
 
     func listContainers() async throws -> [ContainerSnapshot] {
+        await delayIfScripted("listContainers")
         try record("listContainers")
         return containers
     }
@@ -90,6 +104,7 @@ nonisolated final class FakeContainerService: ContainerServicing, @unchecked Sen
     }
 
     func stats(id: String) async throws -> ContainerStats {
+        await delayIfScripted("stats")
         try record("stats", id)
         guard let stats = statsByID[id] else {
             throw FakeServiceError(message: "stats not scripted for \(id)")

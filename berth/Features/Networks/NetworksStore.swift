@@ -39,9 +39,8 @@ final class NetworksStore: ResourceStore {
         beginLoading()
         do {
             async let networksCall = service.listNetworks()
-            async let containersCall = service.listContainers()
+            let containers = try await app.containersFeed.refresh()
             let networks = try await networksCall
-            let containers = try await containersCall
             usage = [:]
             for c in containers {
                 for attachment in c.networks { usage[attachment.network, default: 0] += 1 }

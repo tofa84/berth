@@ -20,9 +20,9 @@ struct ContainersStoreTests {
     private let store: ContainersStore
 
     init() {
-        app = AppModel()
         fake = FakeContainerService()
-        store = ContainersStore(service: fake, app: app)
+        app = AppModel(service: fake)
+        store = app.containers
     }
 
     @Test func loadSortsByIDAndPublishesCount() async throws {

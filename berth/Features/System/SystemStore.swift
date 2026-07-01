@@ -28,7 +28,7 @@ final class SystemStore {
     }
 
     func load() async {
-        if let containers = try? await service.listContainers() {
+        if let containers = try? await app.containersFeed.refresh() {
             let active = Set(containers.map { $0.configuration.image.reference })
             if let img = try? await service.imageSummary(active: active) {
                 imageSize = img.totalSize
