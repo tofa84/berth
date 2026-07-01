@@ -17,7 +17,7 @@ struct BarChart: View {
     var body: some View {
         HStack(alignment: .bottom, spacing: 3) {
             ForEach(0..<slots, id: \.self) { i in
-                let v = value(at: i)
+                let v = Self.sample(values: values, slots: slots, at: i)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(v == nil ? Theme.fill : color)
                     .frame(maxWidth: .infinity)
@@ -28,7 +28,7 @@ struct BarChart: View {
     }
 
     /// Right-align the samples so new data grows in from the right.
-    private func value(at index: Int) -> Double? {
+    nonisolated static func sample(values: [Double], slots: Int, at index: Int) -> Double? {
         let offset = slots - values.count
         let idx = index - offset
         guard idx >= 0, idx < values.count else { return nil }
