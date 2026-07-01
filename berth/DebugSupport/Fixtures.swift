@@ -37,7 +37,8 @@ enum Fixtures {
         running: Bool = true,
         ipv4: String? = nil,
         gateway: String = "192.168.64.1",
-        started: Date? = nil
+        started: Date? = nil,
+        volumeMounts: [(volume: String, destination: String)] = []
     ) throws -> ContainerSnapshot {
         let descriptor = Descriptor(
             mediaType: "application/vnd.oci.image.index.v1+json",
@@ -52,6 +53,11 @@ enum Fixtures {
         resources.cpus = cpus
         resources.memoryInBytes = memBytes
         cfg.resources = resources
+        cfg.mounts = volumeMounts.map {
+            Filesystem.volume(
+                name: $0.volume, format: "ext4",
+                source: "/vols/\($0.volume)", destination: $0.destination, options: [])
+        }
         cfg.publishedPorts = try ports.map {
             try PublishPort(
                 hostAddress: try IPAddress("0.0.0.0"),
@@ -137,6 +143,17 @@ enum Fixtures {
         sizeInBytes: UInt64? = nil
     ) -> VolumeConfiguration {
         VolumeConfiguration(name: name, source: source, sizeInBytes: sizeInBytes)
+    }
+
+    // MARK: - Registries
+
+    static func registry(
+        host: String = "ghcr.io",
+        username: String = "octocat"
+    ) -> ContainerResource.RegistryResource {
+        ContainerResource.RegistryResource(
+            hostname: host, username: username,
+            creationDate: Date(), modificationDate: Date())
     }
 
     // MARK: - Networks

@@ -15,7 +15,7 @@ import ContainerizationOCI
 import ContainerizationOS
 import TerminalProgress
 
-actor ContainerService {
+actor ContainerService: ContainerServicing {
     /// A fresh `ContainerClient` per call. Each one opens its own XPC connection
     /// (cancelled on deinit), mirroring how `ClientImage`/`ClientVolume`/
     /// `ClientHealthCheck` work. A single cached client would keep a long-lived
@@ -40,9 +40,9 @@ actor ContainerService {
 
     // MARK: Containers
 
-    func listContainers(filters: ContainerListFilters = .all) async throws -> [ContainerSnapshot] {
+    func listContainers() async throws -> [ContainerSnapshot] {
         // Exclude the helper "machine" containers, matching the CLI's `container list`.
-        try await makeClient().list(filters: filters.withoutMachines())
+        try await makeClient().list(filters: ContainerListFilters.all.withoutMachines())
     }
 
     func container(id: String) async throws -> ContainerSnapshot {
@@ -116,9 +116,6 @@ actor ContainerService {
 
     // MARK: Aggregate summaries (Dashboard)
 
-    struct ImageSummary: Sendable { let count: Int; let totalSize: UInt64; let reclaimable: UInt64 }
-    struct VolumeSummary: Sendable { let count: Int; let totalSize: UInt64 }
-
     func imageSummary(active: Set<String>) async throws -> ImageSummary {
         let images = try await ClientImage.list()
         let du = try await ClientImage.calculateDiskUsage(activeReferences: active)
@@ -144,16 +141,6 @@ actor ContainerService {
             if let r = try? await img.toImageResource(containerSystemConfig: cfg) { out.append(r) }
         }
         return out
-    }
-
-    /// A coarse pull/unpack progress snapshot, accumulated from the engine's
-    /// `ProgressUpdateEvent` stream (delivered over an XPC endpoint).
-    struct PullProgress: Sendable {
-        var phase = "Preparing…"
-        var received: Int64 = 0
-        var total: Int64 = 0
-        /// 0...1 when a total is known; nil while indeterminate.
-        var fraction: Double? { total > 0 ? min(1, Double(received) / Double(total)) : nil }
     }
 
     /// Thread-safe accumulator: the engine calls the handler concurrently, so the

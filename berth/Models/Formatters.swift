@@ -47,4 +47,10 @@ enum Format {
     static func percent(_ fraction: Double) -> String {
         "\(Int((fraction * 100).rounded()))%"
     }
+
+    /// One user-facing line for an error: the LocalizedError description when
+    /// the error provides one, otherwise the default interpolation.
+    static func error(_ error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? "\(error)"
+    }
 }

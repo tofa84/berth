@@ -66,7 +66,7 @@ final class RunFormModel {
             _ = try await SystemControl.container(argv)
             return true
         } catch {
-            self.error = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            self.error = Format.error(error)
             return false
         }
     }

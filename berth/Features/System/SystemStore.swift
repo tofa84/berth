@@ -19,10 +19,10 @@ final class SystemStore {
     var busy = false
     var error: String?
 
-    private let service: ContainerService
+    private let service: any ContainerServicing
     private unowned let app: AppModel
 
-    init(service: ContainerService, app: AppModel) {
+    init(service: any ContainerServicing, app: AppModel) {
         self.service = service
         self.app = app
     }
@@ -49,7 +49,7 @@ final class SystemStore {
         await load()
     }
 
-    private func act(_ work: @escaping () async throws -> Void) async {
+    private func act(_ work: () async throws -> Void) async {
         error = nil
         busy = true
         defer { busy = false }
@@ -57,7 +57,7 @@ final class SystemStore {
             try await work()
             await app.engine.refresh()
         } catch {
-            self.error = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            self.error = Format.error(error)
         }
     }
 }

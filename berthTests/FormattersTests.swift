@@ -42,6 +42,12 @@ struct FormattersTests {
         #expect(!s.isEmpty)
     }
 
+    @Test func errorPrefersLocalizedDescription() {
+        #expect(Format.error(SystemControlError.commandFailed("boom")) == "boom")
+        struct Plain: Error {}
+        #expect(Format.error(Plain()) == "Plain()")
+    }
+
     @Test func relativeEpochSentinelAndNil() {
         // The Unix-epoch fallback (<= 86_400s since 1970) is treated as unknown.
         #expect(Format.relative(nil) == "—")

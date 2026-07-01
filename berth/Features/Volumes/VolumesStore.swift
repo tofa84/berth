@@ -9,36 +9,36 @@ import ContainerResource
 
 @MainActor
 @Observable
-final class VolumesStore {
+final class VolumesStore: ResourceStore {
     var state: LoadState<[VolumeConfiguration]> = .idle
     var actionError: String?
     var busy = false
     private var usage: [String: Int] = [:]   // volume name -> #containers
 
-    private let service: ContainerService
+    private let service: any ContainerServicing
     private unowned let app: AppModel
 
-    init(service: ContainerService, app: AppModel) {
+    init(service: any ContainerServicing, app: AppModel) {
         self.service = service
         self.app = app
     }
 
-    var all: [VolumeConfiguration] { state.value ?? [] }
     var anonymousCount: Int { all.filter { $0.isAnonymous }.count }
 
     func usedBy(_ volume: VolumeConfiguration) -> Int { usage[volume.name] ?? 0 }
 
     /// The list narrowed by the global search query (name / mount point).
     func displayed(matching query: String) -> [VolumeConfiguration] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return all }
-        return all.filter {
-            $0.name.lowercased().contains(q) || $0.mountPoint.lowercased().contains(q)
-        }
+        searchFiltered(query, in: all)
+    }
+
+    func matches(_ volume: VolumeConfiguration, term: String) -> Bool {
+        volume.name.lowercased().contains(term)
+            || volume.mountPoint.lowercased().contains(term)
     }
 
     func load() async {
-        if case .idle = state { state = .loading }
+        beginLoading()
         do {
             async let volumesCall = service.listVolumes()
             async let containersCall = service.listContainers()
@@ -56,41 +56,24 @@ final class VolumesStore {
             state = .loaded(volumes.sorted { $0.name < $1.name })
             app.counts[.volumes] = volumes.count
         } catch {
-            state = .failed(Self.msg(error))
+            state = .failed(Format.error(error))
         }
     }
 
     func create(name: String, size: String?) async {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        await run { try await self.service.createVolume(name: name, size: size) }
+        await runAction { try await self.service.createVolume(name: name, size: size) }
     }
 
     func delete(_ name: String) async {
-        await run { try await self.service.deleteVolume(name: name) }
+        await runAction { try await self.service.deleteVolume(name: name) }
     }
 
     func prune() async {
         let unused = all.filter { usage[$0.name] ?? 0 == 0 }.map(\.name)
-        actionError = nil
-        busy = true
-        defer { busy = false }
-        var failures: [String] = []
-        for name in unused {
-            do { try await service.deleteVolume(name: name) }
-            catch { failures.append("\(name): \(Self.msg(error))") }
-        }
-        actionError = pruneSummary(failures, of: unused.count, noun: "volumes")
-        await load()
+        await runPrune(noun: "volumes", unused.map { name in
+            (name, { try await self.service.deleteVolume(name: name) })
+        })
     }
-
-    private func run(_ work: @escaping () async throws -> Void) async {
-        actionError = nil
-        busy = true
-        defer { busy = false }
-        do { try await work(); await load() }
-        catch { actionError = Self.msg(error) }
-    }
-
-    private static func msg(_ e: Error) -> String { (e as? LocalizedError)?.errorDescription ?? "\(e)" }
 }
