@@ -54,6 +54,12 @@ final class EngineConnection {
     /// e.g. "container-apiserver version 1.0.0 (build: release, …)" -> "1.0.0".
     var version: String? {
         guard let raw = health?.apiServerVersion else { return nil }
+        return Self.parseVersion(from: raw)
+    }
+
+    /// Extracts a semantic `N.N.N` version from the verbose apiServerVersion
+    /// string; falls back to the raw string when no such pattern is present.
+    nonisolated static func parseVersion(from raw: String) -> String {
         if let m = raw.range(of: #"\d+\.\d+\.\d+"#, options: .regularExpression) {
             return String(raw[m])
         }

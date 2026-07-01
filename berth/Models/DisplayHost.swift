@@ -19,7 +19,11 @@ enum DisplayHost {
     /// The name to render, with the redundant ".local" Bonjour suffix stripped.
     static var name: String {
         if let placeholder { return placeholder }
-        let h = ProcessInfo.processInfo.hostName
-        return h.hasSuffix(".local") ? String(h.dropLast(6)) : h
+        return displayName(from: ProcessInfo.processInfo.hostName)
+    }
+
+    /// Strips the redundant ".local" Bonjour suffix from a raw host name.
+    nonisolated static func displayName(from hostName: String) -> String {
+        hostName.hasSuffix(".local") ? String(hostName.dropLast(6)) : hostName
     }
 }

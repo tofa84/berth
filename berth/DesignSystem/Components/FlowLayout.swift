@@ -21,29 +21,41 @@ struct FlowLayout: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
-        for s in subviews {
-            let size = fittedSize(s, maxWidth: maxWidth)
-            if x + size.width > maxWidth && x > 0 {
-                x = 0; y += rowHeight + spacing; rowHeight = 0
-            }
-            x += size.width + spacing
-            rowHeight = max(rowHeight, size.height)
-        }
-        return CGSize(width: proposal.width ?? x, height: y + rowHeight)
+        let sizes = subviews.map { fittedSize($0, maxWidth: maxWidth) }
+        let laid = Self.arrange(sizes: sizes, maxWidth: maxWidth, spacing: spacing)
+        return CGSize(width: proposal.width ?? laid.size.width, height: laid.size.height)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, rowHeight: CGFloat = 0
-        for s in subviews {
-            let size = fittedSize(s, maxWidth: bounds.width)
-            if x + size.width > bounds.maxX && x > bounds.minX {
-                x = bounds.minX; y += rowHeight + spacing; rowHeight = 0
+        let sizes = subviews.map { fittedSize($0, maxWidth: bounds.width) }
+        let laid = Self.arrange(sizes: sizes, maxWidth: bounds.width, spacing: spacing)
+        for (i, s) in subviews.enumerated() {
+            let p = laid.positions[i]
+            s.place(at: CGPoint(x: bounds.minX + p.x, y: bounds.minY + p.y),
+                    anchor: .topLeading, proposal: ProposedViewSize(sizes[i]))
+        }
+    }
+
+    /// Pure flow math: lays `sizes` left-to-right, wrapping to a new row when the
+    /// next item would exceed `maxWidth` (the first item in a row never wraps).
+    /// Returns each item's top-leading position (origin‑relative) and the total
+    /// content size — `height` is the summed row heights + inter‑row spacing.
+    nonisolated static func arrange(sizes: [CGSize], maxWidth: CGFloat, spacing: CGFloat)
+        -> (positions: [CGPoint], size: CGSize) {
+        var positions: [CGPoint] = []
+        positions.reserveCapacity(sizes.count)
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, contentWidth: CGFloat = 0
+        for size in sizes {
+            if x + size.width > maxWidth && x > 0 {
+                contentWidth = max(contentWidth, x - spacing)
+                x = 0; y += rowHeight + spacing; rowHeight = 0
             }
-            s.place(at: CGPoint(x: x, y: y), anchor: .topLeading, proposal: ProposedViewSize(size))
+            positions.append(CGPoint(x: x, y: y))
             x += size.width + spacing
             rowHeight = max(rowHeight, size.height)
         }
+        contentWidth = max(contentWidth, x > 0 ? x - spacing : 0)
+        return (positions, CGSize(width: contentWidth, height: y + rowHeight))
     }
 }
 
