@@ -9,7 +9,7 @@ import ContainerResource
 
 @MainActor
 @Observable
-final class ContainersStore {
+final class ContainersStore: ResourceStore {
     enum Filter: String, CaseIterable, Hashable {
         case all = "All", running = "Running", stopped = "Stopped"
     }
@@ -22,15 +22,13 @@ final class ContainersStore {
     /// In-flight flag for whole-list operations (prune); per-row work uses busyIDs.
     var busy = false
 
-    private let service: ContainerService
+    private let service: any ContainerServicing
     private unowned let app: AppModel
 
-    init(service: ContainerService, app: AppModel) {
+    init(service: any ContainerServicing, app: AppModel) {
         self.service = service
         self.app = app
     }
-
-    var all: [ContainerSnapshot] { state.value ?? [] }
 
     var filtered: [ContainerSnapshot] {
         switch filter {
@@ -42,11 +40,12 @@ final class ContainersStore {
 
     /// The filtered list further narrowed by the global search query (id / image).
     func displayed(matching query: String) -> [ContainerSnapshot] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !q.isEmpty else { return filtered }
-        return filtered.filter {
-            $0.id.lowercased().contains(q) || $0.imageReference.lowercased().contains(q)
-        }
+        searchFiltered(query, in: filtered)
+    }
+
+    func matches(_ container: ContainerSnapshot, term: String) -> Bool {
+        container.id.lowercased().contains(term)
+            || container.imageReference.lowercased().contains(term)
     }
 
     var runningCount: Int { all.filter { $0.status == .running }.count }
@@ -61,13 +60,13 @@ final class ContainersStore {
     func snapshot(_ id: String) -> ContainerSnapshot? { all.first { $0.id == id } }
 
     func load() async {
-        if case .idle = state { state = .loading }
+        beginLoading()
         do {
             let list = try await service.listContainers()
             state = .loaded(list.sorted { $0.id < $1.id })
             app.counts[.containers] = list.count
         } catch {
-            state = .failed(Self.msg(error))
+            state = .failed(Format.error(error))
         }
     }
 
@@ -83,19 +82,14 @@ final class ContainersStore {
 
     func pruneStopped() async {
         let stopped = all.filter { $0.status != .running }.map(\.id)
-        actionError = nil
-        busy = true
-        defer { busy = false }
-        var failures: [String] = []
-        for id in stopped {
-            do { try await service.deleteContainer(id: id, force: true) }
-            catch { failures.append("\(id): \(Self.msg(error))") }
-        }
-        actionError = pruneSummary(failures, of: stopped.count, noun: "containers")
-        await load()
+        await runPrune(noun: "containers", stopped.map { id in
+            (id, { try await self.service.deleteContainer(id: id, force: true) })
+        })
     }
 
-    private func act(_ id: String, _ work: @escaping () async throws -> Void) async {
+    /// Per-row action bracket: like `runAction`, but holds the row's spinner
+    /// (`busyIDs`) instead of the whole-list `busy` flag.
+    private func act(_ id: String, _ work: () async throws -> Void) async {
         actionError = nil
         busyIDs.insert(id)
         defer { busyIDs.remove(id) }
@@ -103,11 +97,7 @@ final class ContainersStore {
             try await work()
             await load()
         } catch {
-            actionError = Self.msg(error)
+            actionError = Format.error(error)
         }
-    }
-
-    private static func msg(_ e: Error) -> String {
-        (e as? LocalizedError)?.errorDescription ?? "\(e)"
     }
 }

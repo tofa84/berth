@@ -33,10 +33,10 @@ final class EngineConnection {
     /// its XPC connection — is back, instead of staying stuck on a load error.
     private(set) var epoch = 0
 
-    private let service: ContainerService
+    private let service: any ContainerServicing
     private var pollTask: Task<Void, Never>?
 
-    init(service: ContainerService) {
+    init(service: any ContainerServicing) {
         self.service = service
     }
 
@@ -98,7 +98,7 @@ final class EngineConnection {
             // errors on every poll until its Mach service binds. Keep the prior
             // state (the "Starting…" affordance) instead of flickering each error;
             // a genuine failure surfaces once `starting` clears.
-            if !starting { state = .down(Self.describe(error)) }
+            if !starting { state = .down(Format.error(error)) }
         }
     }
 
@@ -109,7 +109,7 @@ final class EngineConnection {
         do {
             try await SystemControl.start()
         } catch {
-            state = .down(SystemControl.describe(error))
+            state = .down(Format.error(error))
             return
         }
         // `container system start` returns once launchd has bootstrapped the job,
@@ -124,13 +124,4 @@ final class EngineConnection {
         } while ContinuousClock.now < deadline
     }
 
-    private static func describe(_ error: Error) -> String {
-        (error as? LocalizedError)?.errorDescription ?? "\(error)"
-    }
-}
-
-private extension SystemControl {
-    static func describe(_ error: Error) -> String {
-        (error as? LocalizedError)?.errorDescription ?? "\(error)"
-    }
 }

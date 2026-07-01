@@ -38,11 +38,11 @@ final class DashboardStore {
     var runningContainers: [ContainerSnapshot] = []
 
     private unowned let app: AppModel
-    private let service: ContainerService
+    private let service: any ContainerServicing
     private var liveTask: Task<Void, Never>?
     private var prevCPU: [String: (usec: UInt64, at: Date)] = [:]
 
-    init(service: ContainerService, app: AppModel) {
+    init(service: any ContainerServicing, app: AppModel) {
         self.service = service
         self.app = app
     }

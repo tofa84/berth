@@ -40,7 +40,7 @@ final class ContainerStreams {
 
     // MARK: Logs
 
-    func startLogs(id: String, service: ContainerService) {
+    func startLogs(id: String, service: any ContainerServicing) {
         guard logTask == nil else { return }
         logs.removeAll()
         pending.removeAll()
@@ -85,7 +85,7 @@ final class ContainerStreams {
 
     // MARK: Stats
 
-    func startStats(id: String, service: ContainerService, cores: Int) {
+    func startStats(id: String, service: any ContainerServicing, cores: Int) {
         guard statsTask == nil else { return }
         self.cores = Double(max(1, cores))
         cpuHistory.removeAll()

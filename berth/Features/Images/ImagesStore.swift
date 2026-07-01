@@ -9,7 +9,7 @@ import ContainerResource
 
 @MainActor
 @Observable
-final class ImagesStore {
+final class ImagesStore: ResourceStore {
     enum Sort: String, CaseIterable, Hashable {
         case name = "Name", size = "Largest", recent = "Newest"
     }
@@ -23,19 +23,17 @@ final class ImagesStore {
     var sort: Sort = .name
     var unusedOnly = false
     /// Live progress while a pull is in flight (nil when idle/indeterminate-done).
-    var pullProgress: ContainerService.PullProgress?
+    var pullProgress: PullProgress?
 
     private var usage: [String: Int] = [:]   // image reference -> #containers
 
-    private let service: ContainerService
+    private let service: any ContainerServicing
     private unowned let app: AppModel
 
-    init(service: ContainerService, app: AppModel) {
+    init(service: any ContainerServicing, app: AppModel) {
         self.service = service
         self.app = app
     }
-
-    var all: [ContainerResource.ImageResource] { state.value ?? [] }
 
     func usedBy(_ image: ContainerResource.ImageResource) -> Int { usage[image.name] ?? 0 }
 
@@ -48,11 +46,7 @@ final class ImagesStore {
 
     /// The list after applying the active search query, unused-only filter and sort.
     func displayed(matching query: String) -> [ContainerResource.ImageResource] {
-        var list = all
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if !q.isEmpty {
-            list = list.filter { $0.name.lowercased().contains(q) || $0.shortDigest.lowercased().contains(q) }
-        }
+        var list = searchFiltered(query, in: all)
         if unusedOnly { list = list.filter { usedBy($0) == 0 } }
         switch sort {
         case .name: list.sort { $0.name < $1.name }
@@ -62,8 +56,13 @@ final class ImagesStore {
         return list
     }
 
+    func matches(_ image: ContainerResource.ImageResource, term: String) -> Bool {
+        image.name.lowercased().contains(term)
+            || image.shortDigest.lowercased().contains(term)
+    }
+
     func load() async {
-        if case .idle = state { state = .loading }
+        beginLoading()
         do {
             async let imagesCall = service.listImages()
             async let containersCall = service.listContainers()
@@ -73,7 +72,7 @@ final class ImagesStore {
             state = .loaded(images)
             app.counts[.images] = images.count
         } catch {
-            state = .failed(Self.msg(error))
+            state = .failed(Format.error(error))
         }
     }
 
@@ -81,7 +80,7 @@ final class ImagesStore {
         let reference = reference.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !reference.isEmpty else { return }
         pullProgress = nil
-        await run {
+        await runAction {
             try await self.service.pullImage(reference: reference) { p in
                 Task { @MainActor in self.pullProgress = p }
             }
@@ -90,36 +89,19 @@ final class ImagesStore {
     }
 
     func delete(_ reference: String) async {
-        await run { try await self.service.deleteImage(reference: reference) }
+        await runAction { try await self.service.deleteImage(reference: reference) }
         if selectedID == reference { selectedID = nil }
     }
 
     /// Remove every image not used by a container, then reclaim orphaned blobs.
     func prune() async {
         let unused = all.filter { usedBy($0) == 0 }.map(\.name)
-        actionError = nil
-        busy = true
-        defer { busy = false }
-        var failures: [String] = []
-        for reference in unused {
-            do { try await service.deleteImage(reference: reference) }
-            catch { failures.append("\(reference): \(Self.msg(error))") }
+        var operations: [(label: String, run: () async throws -> Void)] = unused.map { reference in
+            (reference, { try await self.service.deleteImage(reference: reference) })
         }
         // Sweep any content-store blobs left orphaned by the deletions.
-        do { _ = try await service.pruneImageBlobs() }
-        catch { failures.append("blobs: \(Self.msg(error))") }
-        actionError = pruneSummary(failures, of: unused.count + 1, noun: "operations")
+        operations.append(("blobs", { _ = try await self.service.pruneImageBlobs() }))
+        await runPrune(noun: "operations", operations)
         if let sel = selectedID, unused.contains(sel) { selectedID = nil }
-        await load()
     }
-
-    private func run(_ work: @escaping () async throws -> Void) async {
-        actionError = nil
-        busy = true
-        defer { busy = false }
-        do { try await work(); await load() }
-        catch { actionError = Self.msg(error) }
-    }
-
-    private static func msg(_ e: Error) -> String { (e as? LocalizedError)?.errorDescription ?? "\(e)" }
 }
