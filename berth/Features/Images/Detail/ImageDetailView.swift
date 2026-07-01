@@ -185,7 +185,7 @@ struct ImageDetailView: View {
                     if env.isEmpty {
                         Text("No variables").font(.berthSans(12)).foregroundStyle(Theme.textTertiary)
                     } else {
-                        FlowChips(items: env)
+                        EnvList(items: env)
                     }
                 }
                 InfoCard(title: "Labels") {
@@ -231,7 +231,7 @@ struct ImageDetailView: View {
             Text("\(layer.id)").font(.berthMono(11)).foregroundStyle(Theme.textFaint)
                 .frame(width: 26, alignment: .trailing)
             VStack(alignment: .leading, spacing: 3) {
-                Text(layer.command).font(.berthMono(11.5)).foregroundStyle(Theme.textSecondary)
+                commandText(layer.commandParts).font(.berthMono(11.5))
                     .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 8) {
                     Text(historyDate(layer.created)).font(.berthSans(10.5)).foregroundStyle(Theme.textFaint)
@@ -244,6 +244,20 @@ struct ImageDetailView: View {
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 11)
+    }
+
+    /// The instruction word (RUN, ENV, …) and the trailing "# buildkit" marker
+    /// recede so the actual command leads.
+    private func commandText(_ parts: ImageLayerInfo.CommandParts) -> Text {
+        var text = Text("")
+        if let instruction = parts.instruction {
+            text = Text("\(instruction) ").foregroundStyle(Theme.textFaint)
+        }
+        text = text + Text(parts.body).foregroundStyle(Theme.textSecondary)
+        if let comment = parts.comment {
+            text = text + Text(" \(comment)").foregroundStyle(Theme.textFaint)
+        }
+        return text
     }
 
     // MARK: Inspect

@@ -17,6 +17,10 @@ enum LogKind: Sendable {
 struct LogLine: Sendable {
     let text: String
     let kind: LogKind
+
+    /// End-of-stream marker yielded once both read loops have exited; the log
+    /// view styles it distinctly (see `LogFormat.parse`).
+    static let stoppedSentinel = "—— container stopped ——"
 }
 
 enum LogReader {
@@ -38,7 +42,7 @@ enum LogReader {
         // cancellation (tab/view change) is the other way out. Mark the end so
         // the user knows no further output is coming.
         if !Task.isCancelled {
-            continuation.yield(LogLine(text: "—— container stopped ——", kind: .stdout))
+            continuation.yield(LogLine(text: LogLine.stoppedSentinel, kind: .stdout))
         }
     }
 

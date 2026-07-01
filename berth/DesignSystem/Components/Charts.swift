@@ -63,20 +63,34 @@ struct DonutGauge: View {
     }
 }
 
-/// Compact metric tile (label + big mono value).
+/// Compact metric tile (label + big mono value). An optional footnote action
+/// renders as an accent-colored button after the footnote — the one place a
+/// tile may carry the accent (actions, not values).
 struct MetricTile: View {
     let label: String
     let value: String
     var accent: Color = Theme.textPrimary
     var footnote: String? = nil
+    var footnoteAction: (title: String, run: () -> Void)? = nil
 
     var body: some View {
         Card(padding: 15) {
             VStack(alignment: .leading, spacing: 8) {
                 SectionCaption(text: label)
                 Text(value).font(.berthMono(22, .semibold)).foregroundStyle(accent)
-                if let footnote {
-                    Text(footnote).font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
+                if footnote != nil || footnoteAction != nil {
+                    HStack(spacing: 4) {
+                        if let footnote {
+                            Text(footnote).font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
+                        }
+                        if let footnoteAction {
+                            Button(action: footnoteAction.run) {
+                                Text(footnoteAction.title)
+                                    .font(.berthSans(11.5, .medium)).foregroundStyle(Theme.accent)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
             }
             // Fill the grid row's height so tiles with a footnote (e.g. Memory)

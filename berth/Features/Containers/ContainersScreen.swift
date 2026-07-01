@@ -122,10 +122,10 @@ struct ContainersScreen: View {
             cell("STATUS", cols.status)
             cell("NAME / IMAGE", nil)
             cell("ID", cols.id)
-            cell("CPU", cols.cpu)
-            cell("MEM", cols.mem)
+            cell("CPU", cols.cpu, alignment: .trailing)
+            cell("MEM", cols.mem, alignment: .trailing)
             cell("PORTS", cols.ports)
-            cell("UPTIME", cols.uptime)
+            cell("UPTIME", cols.uptime, alignment: .trailing)
             cell("ACTIONS", cols.actions)
             Spacer().frame(width: cols.chevron)
         }
@@ -135,10 +135,13 @@ struct ContainersScreen: View {
         .padding(.horizontal, 22).padding(.bottom, 8)
     }
 
-    private func cell(_ text: String, _ width: Double?) -> some View {
+    private func cell(_ text: String, _ width: Double?, alignment: Alignment = .leading) -> some View {
         Text(text)
-            .frame(width: width.map { CGFloat($0) }, alignment: .leading)
-            .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
+            // Right-aligned columns keep a gutter inside their fixed frame so
+            // the digits don't touch the next column (the HStack has spacing 0).
+            .padding(.trailing, alignment == .trailing ? 12 : 0)
+            .frame(width: width.map { CGFloat($0) }, alignment: alignment)
+            .frame(maxWidth: width == nil ? .infinity : nil, alignment: alignment)
     }
 
     @ViewBuilder
@@ -161,10 +164,10 @@ struct ContainersScreen: View {
             .padding(.trailing, 10)
 
             mono(c.shortID, cols.id)
-            mono("\(c.allocatedCPUs)×", cols.cpu)
-            mono(Format.bytes(c.memoryLimitBytes), cols.mem)
+            mono("\(c.allocatedCPUs)×", cols.cpu, alignment: .trailing)
+            mono(Format.bytes(c.memoryLimitBytes), cols.mem, alignment: .trailing)
             mono(c.portsSummary, cols.ports)
-            mono(c.uptimeText, cols.uptime)
+            mono(c.uptimeText, cols.uptime, alignment: .trailing)
 
             // Actions
             HStack(spacing: 6) {
@@ -199,12 +202,13 @@ struct ContainersScreen: View {
         .onTapGesture { store.selectedID = c.id }
     }
 
-    private func mono(_ text: String, _ width: Double) -> some View {
+    private func mono(_ text: String, _ width: Double, alignment: Alignment = .leading) -> some View {
         Text(text)
             .font(.berthMono(11.5))
             .foregroundStyle(Theme.textSecondary)
             .lineLimit(1)
-            .frame(width: width, alignment: .leading)
+            .padding(.trailing, alignment == .trailing ? 12 : 0)
+            .frame(width: width, alignment: alignment)
     }
 
     private func iconButton(_ system: String, tint: Color, action: @escaping () -> Void) -> some View {

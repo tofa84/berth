@@ -140,12 +140,7 @@ struct ContainerDetailView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(streams.logs) { e in
-                            Text(e.text)
-                                .font(.berthMono(11.5))
-                                .foregroundStyle(e.kind == .stderr ? Theme.red : Theme.textSecondary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(e.id)
+                            logRow(e).id(e.id)
                         }
                         Color.clear.frame(height: 1).id(-1)
                     }
@@ -166,13 +161,66 @@ struct ContainerDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(Theme.border, lineWidth: 1))
     }
 
+    /// One log line: dimmed timestamp, level in a fixed column colored by
+    /// severity (amber = warning, red = error), message leading. A subtle bar
+    /// on the left marks warnings/errors; unparsed lines render plain.
+    @ViewBuilder
+    private func logRow(_ e: ContainerStreams.LogEntry) -> some View {
+        let p = e.parsed
+        Group {
+            if p.severity == .sentinel {
+                Text(p.message).font(.berthMono(11.5)).italic().foregroundStyle(Theme.textFaint)
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    if let timestamp = p.timestamp {
+                        Text(timestamp).font(.berthMono(11.5)).foregroundStyle(Theme.textFaint)
+                            .frame(minWidth: 88, alignment: .leading)
+                    }
+                    if let level = p.level {
+                        Text(level).font(.berthMono(11.5)).foregroundStyle(levelColor(p.severity))
+                            .frame(width: 54, alignment: .leading)
+                    }
+                    Text(p.message)
+                        .font(.berthMono(11.5))
+                        .foregroundStyle(p.severity == .error ? Theme.red : Theme.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.leading, 6)
+                .overlay(alignment: .leading) {
+                    if let marker = markerColor(p.severity) {
+                        RoundedRectangle(cornerRadius: 1).fill(marker).frame(width: 2)
+                    }
+                }
+            }
+        }
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func markerColor(_ severity: LogSeverity) -> Color? {
+        switch severity {
+        case .warning: Theme.amber
+        case .error: Theme.red
+        default: nil
+        }
+    }
+
+    private func levelColor(_ severity: LogSeverity) -> Color {
+        switch severity {
+        case .warning: Theme.amber
+        case .error: Theme.red
+        case .info: Theme.textTertiary
+        default: Theme.textFaint
+        }
+    }
+
     // MARK: Stats
 
     private func statsView(_ c: ContainerSnapshot) -> some View {
         let s = streams.latest
         return VStack(spacing: 14) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                MetricTile(label: "CPU", value: String(format: "%.1f%%", streams.cpuPercentDisplay))
+                MetricTile(label: "CPU", value: Format.percent(points: streams.cpuPercentDisplay))
                 MetricTile(label: "Memory", value: Format.bytes(s?.memoryUsageBytes),
                            footnote: "limit \(Format.bytes(c.memoryLimitBytes))")
                 MetricTile(label: "Net I/O", value: "\(Format.bytes(s?.networkRxBytes)) / \(Format.bytes(s?.networkTxBytes))")
@@ -183,7 +231,7 @@ struct ContainerDetailView: View {
                     HStack {
                         SectionCaption(text: "CPU · last 90s")
                         Spacer()
-                        Text(String(format: "peak %.1f%%", (streams.cpuHistory.max() ?? 0) * streams.coresForDisplay * 100))
+                        Text("peak \(Format.percent(points: (streams.cpuHistory.max() ?? 0) * streams.coresForDisplay * 100))")
                             .font(.berthMono(11)).foregroundStyle(Theme.textTertiary)
                     }
                     BarChart(values: streams.cpuHistory, height: 90, slots: 60)
@@ -232,7 +280,7 @@ struct ContainerDetailView: View {
                 if env.isEmpty {
                     Text("No variables").font(.berthSans(12)).foregroundStyle(Theme.textTertiary)
                 } else {
-                    FlowChips(items: env)
+                    EnvList(items: env)
                 }
             }
         }
@@ -279,7 +327,16 @@ struct InfoCard<Content: View>: View {
         Card(fill: fill) {
             VStack(alignment: .leading, spacing: 12) {
                 SectionCaption(text: title)
-                VStack(alignment: .leading, spacing: 10) { content }
+                // Hairlines between the rows make the key/value list scannable;
+                // single-child cards (e.g. Environment) get none.
+                VStack(alignment: .leading, spacing: 0) {
+                    Group(subviews: content) { subviews in
+                        ForEach(Array(subviews.enumerated()), id: \.offset) { index, subview in
+                            if index > 0 { Divider().overlay(Theme.border).padding(.vertical, 5.5) }
+                            subview
+                        }
+                    }
+                }
             }
         }
     }
@@ -290,26 +347,14 @@ struct KeyValue: View {
     let value: String
     init(_ key: String, _ value: String) { self.key = key; self.value = value }
     var body: some View {
-        HStack(alignment: .top) {
+        // Fixed label column with the value right next to it — the eye never
+        // has to jump across the card to find a short value.
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(key).font(.berthSans(12.5)).foregroundStyle(Theme.textTertiary)
-            Spacer(minLength: 12)
+                .frame(width: 96, alignment: .leading)
             Text(value).font(.berthMono(12)).foregroundStyle(Theme.textSecondary)
-                .multilineTextAlignment(.trailing).textSelection(.enabled)
-        }
-    }
-}
-
-struct FlowChips: View {
-    let items: [String]
-    var body: some View {
-        // Simple wrapping layout.
-        FlexibleWrap(items: items) { item in
-            Text(item)
-                .font(.berthMono(11))
-                .foregroundStyle(Theme.textSecondary)
-                .padding(.horizontal, 9).padding(.vertical, 3)
-                .background(Theme.fill)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

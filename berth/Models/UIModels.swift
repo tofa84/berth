@@ -77,6 +77,16 @@ extension ContainerResource.ImageResource {
             .filter { $0 != "unknown/unknown" && seen.insert($0).inserted }
         return ps.isEmpty ? "—" : ps.joined(separator: ", ")
     }
+    /// Compact architecture summary for the list column: the ubiquitous
+    /// "linux/" prefix is dropped ("amd64 · arm64"); non-linux platforms keep
+    /// their os. Same unknown/unknown drop + de-dup as `platformsText`.
+    var archSummaryText: String {
+        var seen = Set<String>()
+        let ps = variants
+            .map { $0.platform.os == "linux" ? $0.platform.architecture : "\($0.platform.os)/\($0.platform.architecture)" }
+            .filter { !($0.hasPrefix("unknown")) && seen.insert($0).inserted }
+        return ps.isEmpty ? "—" : ps.joined(separator: " · ")
+    }
     var totalSize: Int64 { variants.reduce(0) { $0 + $1.size } }
     /// Full content digest (with the `sha256:` prefix), for copy actions.
     var fullDigest: String { variants.first?.digest ?? configuration.descriptor.digest }
@@ -143,6 +153,54 @@ struct ImageLayerInfo: Identifiable {
     let command: String
     let created: String         // raw RFC3339 string, or "" if absent
     let empty: Bool
+
+    /// A layer command split for rendering: the Dockerfile instruction word and
+    /// a trailing "# buildkit" marker recede, the body leads.
+    struct CommandParts: Equatable {
+        let instruction: String?
+        let body: String
+        let comment: String?
+    }
+
+    var commandParts: CommandParts { Self.parse(command: command) }
+
+    /// The Dockerfile instruction set — matched case-sensitively so a shell
+    /// command that happens to start with "run"/"env" isn't dimmed.
+    private static let instructions: Set<String> = [
+        "ADD", "ARG", "CMD", "COPY", "ENTRYPOINT", "ENV", "EXPOSE", "FROM",
+        "HEALTHCHECK", "LABEL", "MAINTAINER", "ONBUILD", "RUN", "SHELL",
+        "STOPSIGNAL", "USER", "VOLUME", "WORKDIR",
+    ]
+
+    nonisolated static func parse(command: String) -> CommandParts {
+        var body = command.trimmingCharacters(in: .whitespaces)
+
+        // Only the exact BuildKit marker is treated as a comment — shell
+        // bodies legitimately contain `#`, so no general splitting.
+        var comment: String?
+        if body.hasSuffix("# buildkit") {
+            let head = body.dropLast("# buildkit".count)
+            // Require separation so e.g. "echo x# buildkit" stays untouched.
+            if head.isEmpty || head.hasSuffix(" ") || head.hasSuffix("\t") {
+                comment = "# buildkit"
+                body = head.trimmingCharacters(in: .whitespaces)
+            }
+        }
+
+        var instruction: String?
+        if let space = body.firstIndex(where: { $0 == " " || $0 == "\t" }) {
+            let word = String(body[..<space])
+            if instructions.contains(word) {
+                instruction = word
+                body = String(body[space...]).trimmingCharacters(in: .whitespaces)
+            }
+        } else if instructions.contains(body), comment != nil {
+            // e.g. "RUN # buildkit" — instruction with an empty body.
+            instruction = body
+            body = ""
+        }
+        return CommandParts(instruction: instruction, body: body, comment: comment)
+    }
 }
 
 // MARK: - Volumes

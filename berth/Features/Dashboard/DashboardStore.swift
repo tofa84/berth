@@ -37,6 +37,10 @@ final class DashboardStore {
     var perStats: [String: (cpu: Double, mem: UInt64)] = [:]
     var runningContainers: [ContainerSnapshot] = []
 
+    // Clean-up ("Reclaimable" tile action)
+    var pruning = false
+    var actionError: String?
+
     private unowned let app: AppModel
     private let service: any ContainerServicing
     private var liveTask: Task<Void, Never>?
@@ -121,6 +125,21 @@ final class DashboardStore {
         cpuHistory.append(cpuFraction)
         if cpuHistory.count > 60 { cpuHistory.removeFirst(cpuHistory.count - 60) }
         loaded = true
+    }
+
+    /// Reclaim what the tile reports: delete every unused image, then sweep
+    /// orphaned blobs — delegated to the Images screen's prune path so both
+    /// entry points share one behavior (and its tests).
+    func cleanUp() async {
+        guard !pruning else { return }
+        pruning = true
+        defer { pruning = false }
+        actionError = nil
+        let images = app.images
+        await images.load()          // fills the usage map prune relies on
+        await images.prune()
+        actionError = images.actionError
+        await refreshResources()
     }
 
     func refreshResources() async {

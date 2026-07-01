@@ -65,6 +65,34 @@ struct DashboardStoreTests {
         #expect(store.loaded)
     }
 
+    @Test func cleanUpPrunesUnusedImages() async throws {
+        // One image in use by a container, one unused: clean-up must delete
+        // only the unused one, sweep blobs once, then refresh the summaries.
+        fake.containers = [try Fixtures.snapshot(id: "web", image: "docker.io/library/used:latest")]
+        fake.images = [
+            Fixtures.image(name: "docker.io/library/used:latest"),
+            Fixtures.image(name: "docker.io/library/old:latest"),
+        ]
+        fake.imageSummaryResult = ImageSummary(count: 1, totalSize: 100, reclaimable: 0)
+        await store.cleanUp()
+        #expect(fake.callCount("deleteImage:docker.io/library/old:latest") == 1)
+        #expect(fake.callCount("deleteImage:docker.io/library/used:latest") == 0)
+        #expect(fake.callCount("pruneBlobs") == 1)
+        #expect(store.actionError == nil)
+        // The tile data was refetched after the prune.
+        #expect(store.reclaimable == 0)
+        #expect(store.imageCount == 1)
+        #expect(!store.pruning)
+    }
+
+    @Test func cleanUpSurfacesFailure() async throws {
+        fake.images = [Fixtures.image(name: "docker.io/library/old:latest")]
+        fake.failures["deleteImage:docker.io/library/old:latest"] = "digest in use"
+        await store.cleanUp()
+        #expect(store.actionError?.contains("digest in use") == true)
+        #expect(!store.pruning)
+    }
+
     @Test func refreshResourcesPublishesSummaries() async {
         fake.imageSummaryResult = ImageSummary(count: 3, totalSize: 1_000, reclaimable: 400)
         fake.volumeSummaryResult = VolumeSummary(count: 2, totalSize: 500)
