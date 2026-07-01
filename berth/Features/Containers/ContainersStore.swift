@@ -62,9 +62,10 @@ final class ContainersStore: ResourceStore {
     func load() async {
         beginLoading()
         do {
-            let list = try await service.listContainers()
+            // Through the shared feed: concurrent refreshes (dashboard tick)
+            // ride the same fetch, and the feed owns the sidebar badge.
+            let list = try await app.containersFeed.refresh()
             state = .loaded(list.sorted { $0.id < $1.id })
-            app.counts[.containers] = list.count
         } catch {
             state = .failed(Format.error(error))
         }

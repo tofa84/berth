@@ -33,7 +33,7 @@ final class ContainerStreams {
     private(set) var cpuHistory: [Double] = []   // normalized 0...1 per sample
     private(set) var cpuPercentDisplay: Double = 0
     private var statsTask: Task<Void, Never>?
-    private var prevCPU: (usec: UInt64, at: Date)?
+    private var sampler = CPUSampler()
     private var cores: Double = 1
 
     init() {}
@@ -89,7 +89,7 @@ final class ContainerStreams {
         guard statsTask == nil else { return }
         self.cores = Double(max(1, cores))
         cpuHistory.removeAll()
-        prevCPU = nil
+        sampler = CPUSampler()
         cpuPercentDisplay = 0
         statsTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -103,19 +103,11 @@ final class ContainerStreams {
 
     private func ingest(_ s: ContainerStats) {
         latest = s
-        guard let cpu = s.cpuUsageUsec else { return }
-        let now = Date()
-        if let prev = prevCPU {
-            let dCpu = Double(cpu >= prev.usec ? cpu - prev.usec : 0)        // µs of CPU time
-            let dWall = now.timeIntervalSince(prev.at) * 1_000_000           // µs of wall time
-            if dWall > 0 {
-                let perCore = dCpu / dWall                                   // fraction of one core
-                cpuPercentDisplay = perCore * 100
-                cpuHistory.append(min(1, perCore / cores))
-                if cpuHistory.count > 60 { cpuHistory.removeFirst(cpuHistory.count - 60) }
-            }
-        }
-        prevCPU = (cpu, now)
+        guard let cpu = s.cpuUsageUsec,
+              let percent = sampler.sample(usec: cpu, at: Date()) else { return }
+        cpuPercentDisplay = percent
+        cpuHistory.append(min(1, (percent / 100) / cores))
+        if cpuHistory.count > 60 { cpuHistory.removeFirst(cpuHistory.count - 60) }
     }
 
     // MARK: Lifecycle

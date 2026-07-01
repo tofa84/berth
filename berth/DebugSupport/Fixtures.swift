@@ -145,6 +145,26 @@ enum Fixtures {
         VolumeConfiguration(name: name, source: source, sizeInBytes: sizeInBytes)
     }
 
+    // MARK: - Stats
+
+    static func stats(
+        id: String = "abc",
+        memoryUsage: UInt64? = nil,
+        memoryLimit: UInt64? = nil,
+        cpuUsageUsec: UInt64? = nil,
+        networkRx: UInt64? = nil,
+        networkTx: UInt64? = nil,
+        processes: UInt64? = nil
+    ) -> ContainerStats {
+        ContainerStats(
+            id: id,
+            memoryUsageBytes: memoryUsage, memoryLimitBytes: memoryLimit,
+            cpuUsageUsec: cpuUsageUsec,
+            networkRxBytes: networkRx, networkTxBytes: networkTx,
+            blockReadBytes: nil, blockWriteBytes: nil,
+            numProcesses: processes)
+    }
+
     // MARK: - Registries
 
     static func registry(

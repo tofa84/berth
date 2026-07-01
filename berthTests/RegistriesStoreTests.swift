@@ -19,9 +19,9 @@ struct RegistriesStoreTests {
     private let store: RegistriesStore
 
     init() {
-        app = AppModel()
         fake = FakeContainerService()
-        store = RegistriesStore(service: fake, app: app)
+        app = AppModel(service: fake)
+        store = app.registries
     }
 
     @Test func loginSuccessReturnsTrueAndReloads() async {

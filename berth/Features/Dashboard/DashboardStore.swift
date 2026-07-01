@@ -40,7 +40,7 @@ final class DashboardStore {
     private unowned let app: AppModel
     private let service: any ContainerServicing
     private var liveTask: Task<Void, Never>?
-    private var prevCPU: [String: (usec: UInt64, at: Date)] = [:]
+    private var samplers: [String: CPUSampler] = [:]
 
     init(service: any ContainerServicing, app: AppModel) {
         self.service = service
@@ -66,8 +66,8 @@ final class DashboardStore {
 
     func stop() { liveTask?.cancel(); liveTask = nil }
 
-    private func refreshContainers() async {
-        guard let list = try? await service.listContainers() else { return }
+    func refreshContainers() async {
+        guard let list = try? await app.containersFeed.refresh() else { return }
         total = list.count
         let runs = list.filter { $0.status == .running }
         running = runs.count
@@ -77,27 +77,39 @@ final class DashboardStore {
         // Drop CPU baselines for containers that have exited/been deleted, so the
         // sampling map stays bounded by the current running set.
         let liveIDs = Set(runs.map { $0.id })
-        prevCPU = prevCPU.filter { liveIDs.contains($0.key) }
+        samplers = samplers.filter { liveIDs.contains($0.key) }
 
         // Memory limit is a static config value, so sum it from the snapshots
         // unconditionally — a transient stats() failure shouldn't make the total
         // allocated-memory caption jump down and back up.
         let limitSum = runs.reduce(UInt64(0)) { $0 + $1.memoryLimitBytes }
+
+        // Fetch all stats concurrently: one serial XPC round-trip per running
+        // container would make the refresh O(n) in latency and could overrun
+        // the 2s tick on container-heavy setups.
+        let service = self.service
+        let statsByID = await withTaskGroup(of: (String, ContainerStats?).self) { group in
+            for c in runs {
+                let id = c.id
+                group.addTask { (id, try? await service.stats(id: id)) }
+            }
+            var out: [String: ContainerStats] = [:]
+            for await (id, stats) in group {
+                if let stats { out[id] = stats }
+            }
+            return out
+        }
+
         var aggCpu = 0.0, usedSum: UInt64 = 0
         var per: [String: (cpu: Double, mem: UInt64)] = [:]
         let now = Date()
         for c in runs {
-            guard let s = try? await service.stats(id: c.id) else { continue }
+            guard let s = statsByID[c.id] else { continue }
             let mem = s.memoryUsageBytes ?? 0
             usedSum += mem
             var cpuPct = 0.0
             if let cpu = s.cpuUsageUsec {
-                if let p = prevCPU[c.id] {
-                    let dCpu = Double(cpu >= p.usec ? cpu - p.usec : 0)
-                    let dWall = now.timeIntervalSince(p.at) * 1_000_000
-                    if dWall > 0 { cpuPct = (dCpu / dWall) * 100 }
-                }
-                prevCPU[c.id] = (cpu, now)
+                cpuPct = samplers[c.id, default: CPUSampler()].sample(usec: cpu, at: now) ?? 0
             }
             aggCpu += cpuPct
             per[c.id] = (cpuPct, mem)
@@ -108,11 +120,10 @@ final class DashboardStore {
         memLimit = limitSum
         cpuHistory.append(cpuFraction)
         if cpuHistory.count > 60 { cpuHistory.removeFirst(cpuHistory.count - 60) }
-        app.counts[.containers] = total
         loaded = true
     }
 
-    private func refreshResources() async {
+    func refreshResources() async {
         let active = Set(runningContainers.map { $0.configuration.image.reference })
         if let img = try? await service.imageSummary(active: active) {
             imageCount = img.count

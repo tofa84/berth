@@ -19,9 +19,9 @@ struct NetworksStoreTests {
     private let store: NetworksStore
 
     init() {
-        app = AppModel()
         fake = FakeContainerService()
-        store = NetworksStore(service: fake, app: app)
+        app = AppModel(service: fake)
+        store = app.networks
     }
 
     @Test func usageCountsAttachedContainers() async throws {

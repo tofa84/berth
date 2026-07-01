@@ -65,9 +65,8 @@ final class ImagesStore: ResourceStore {
         beginLoading()
         do {
             async let imagesCall = service.listImages()
-            async let containersCall = service.listContainers()
+            let containers = try await app.containersFeed.refresh()
             let images = try await imagesCall
-            let containers = try await containersCall
             usage = containers.reduce(into: [:]) { $0[$1.configuration.image.reference, default: 0] += 1 }
             state = .loaded(images)
             app.counts[.images] = images.count

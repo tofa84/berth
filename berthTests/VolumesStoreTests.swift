@@ -19,9 +19,9 @@ struct VolumesStoreTests {
     private let store: VolumesStore
 
     init() {
-        app = AppModel()
         fake = FakeContainerService()
-        store = VolumesStore(service: fake, app: app)
+        app = AppModel(service: fake)
+        store = app.volumes
     }
 
     @Test func usageCountsDistinctContainers() async throws {
