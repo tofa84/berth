@@ -44,27 +44,6 @@ A **global search** box filters containers, images, volumes, networks and regist
 
 > **Builds** is not yet implemented — image building uses a separate gRPC `container-builder-shim` path and is currently a placeholder.
 
-### A closer look
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/containers.png" alt="Containers list with lifecycle actions and filters" /></td>
-    <td width="50%"><img src="docs/screenshots/container-logs.png" alt="Live-streamed container logs with follow toggle" /></td>
-  </tr>
-  <tr>
-    <td align="center"><em>Containers — list, filters &amp; lifecycle actions</em></td>
-    <td align="center"><em>Live logs streamed straight from the engine</em></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/images.png" alt="Images list with pull, prune and sort" /></td>
-    <td width="50%"><img src="docs/screenshots/image-layers.png" alt="Image detail showing OCI layer history" /></td>
-  </tr>
-  <tr>
-    <td align="center"><em>Images — pull, prune &amp; inspect</em></td>
-    <td align="center"><em>Per-image layer history &amp; multi-arch picker</em></td>
-  </tr>
-</table>
-
 ## How it works
 
 `container` is not a daemon with a socket — it is a launchd-managed XPC service tree built on the [`containerization`](https://github.com/apple/containerization) package, running one lightweight VM per container via Virtualization.framework. berth adds `apple/container` as a Swift Package dependency and calls its `public` async client types directly:
