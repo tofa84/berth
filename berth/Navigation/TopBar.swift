@@ -34,7 +34,10 @@ struct TopBar: View {
                 model.showRunSheet = true
             }
         }
-        .padding(.leading, 78)   // clear native traffic lights
+        // Flush-left, aligned to the sidebar's content edge (12 outer + 8 header
+        // inset = 20). The native traffic lights float in the title-bar safe area
+        // *above* this bar, so no leading reservation is needed to clear them.
+        .padding(.leading, 20)
         .padding(.trailing, 16)
         .frame(height: 52)
         .background(Theme.toolbar)

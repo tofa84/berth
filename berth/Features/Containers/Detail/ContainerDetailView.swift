@@ -272,9 +272,11 @@ struct ContainerDetailView: View {
 
 struct InfoCard<Content: View>: View {
     let title: String
+    /// Stretch to fill the row height so paired cards stay the same size.
+    var fill: Bool = false
     @ViewBuilder var content: Content
     var body: some View {
-        Card {
+        Card(fill: fill) {
             VStack(alignment: .leading, spacing: 12) {
                 SectionCaption(text: title)
                 VStack(alignment: .leading, spacing: 10) { content }

@@ -11,12 +11,16 @@ import SwiftUI
 
 struct Card<Content: View>: View {
     var padding: CGFloat = 16
+    /// When true, the card stretches to fill the available height (its background
+    /// included) with content pinned to the top — used to keep side-by-side cards
+    /// the same size regardless of how much each one holds.
+    var fill: Bool = false
     @ViewBuilder var content: Content
 
     var body: some View {
         content
             .padding(padding)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
             .background(Theme.card)
             .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
             .overlay(

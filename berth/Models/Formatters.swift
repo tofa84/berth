@@ -33,7 +33,11 @@ enum Format {
     }
 
     static func relative(_ date: Date?, now: Date = Date()) -> String {
-        guard let date else { return "—" }
+        // Treat a missing date — or the Unix-epoch sentinel the engine substitutes
+        // when an image records no creation time (reproducibly-built infra images
+        // like `vminit` carry no `created` field) — as unknown, instead of rendering
+        // a misleading "56 yr ago" for a 1970-01-01 fallback.
+        guard let date, date.timeIntervalSince1970 > 86_400 else { return "—" }
         let f = RelativeDateTimeFormatter()
         f.unitsStyle = .abbreviated
         return f.localizedString(for: date, relativeTo: now)
