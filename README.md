@@ -17,6 +17,8 @@
 
 ---
 
+> ⚠️ **berth is unsigned (ad-hoc signed only, not notarized).** macOS **will** block it on first launch — this is expected, not a bug. See [Installation](#installation) for the one-time approval step in System Settings ▸ Privacy & Security.
+
 **berth** is an open-source, Docker-Desktop-style GUI for [`apple/container`](https://github.com/apple/container) — Apple's tool for running Linux containers as lightweight per-container virtual machines on Apple silicon. It talks to the same engine the `container` CLI uses, **natively over XPC** through Apple's own Swift client library — no daemon, no socket, no shelling out for the hot paths. The result is real streaming logs, live stats, and typed data, in a clean native Mac interface.
 
 <p align="center">
@@ -43,6 +45,14 @@ berth covers the day-to-day container workflow across eight screens:
 A **global search** box filters containers, images, volumes, networks and registries from anywhere.
 
 > **Builds** is not yet implemented — image building uses a separate gRPC `container-builder-shim` path and is currently a placeholder.
+
+## Installation
+
+1. Download the latest `berth-<version>.dmg` from [Releases](https://github.com/tofa84/berth/releases) and drag **berth.app** into **/Applications**.
+2. Install [`apple/container`](https://github.com/apple/container) and start the engine (`container system start`) — berth is a GUI for it, not a replacement.
+3. **Allow the app to run.** berth ships **unsigned (ad-hoc signed, not notarized)** — there's no paid Apple Developer Program membership behind this project — so **Gatekeeper blocks it on first launch** with a "berth is damaged / can't be opened" or "unidentified developer" prompt. This is expected. macOS 26 also removed the old right-click ▸ Open bypass, so approve it explicitly:
+   - Open **System Settings ▸ Privacy & Security**, scroll down, and click **"Open Anyway"** next to the berth message, then confirm in the dialog that appears.
+   - Or, in Terminal: `xattr -dr com.apple.quarantine /Applications/berth.app`
 
 ## How it works
 
