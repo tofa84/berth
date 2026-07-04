@@ -188,5 +188,58 @@ nonisolated final class FakeContainerService: ContainerServicing, @unchecked Sen
         try record("logout", host)
         registries.removeAll { $0.name == host }
     }
+
+    // MARK: Builds
+
+    var builderInfoResult = BuilderInfo.notCreated
+    /// Events the next `performBuild` yields (unless `failures["performBuild"]`).
+    var scriptedBuildEvents: [BuildEvent] = []
+
+    func builderInfo() async throws -> BuilderInfo {
+        try record("builderInfo")
+        return builderInfoResult
+    }
+
+    func startBuilder(progress: (@Sendable (PullProgress) -> Void)?) async throws {
+        try record("startBuilder")
+        builderInfoResult.status = .running
+    }
+
+    func stopBuilder() async throws {
+        try record("stopBuilder")
+        builderInfoResult.status = .stopped
+    }
+
+    func deleteBuilder(force: Bool) async throws {
+        try record("deleteBuilder")
+        builderInfoResult = .notCreated
+    }
+
+    func performBuild(_ request: BuildRequest) -> AsyncStream<BuildEvent> {
+        // Streams can't throw, so record inline (mirrors `record`) and turn a
+        // scripted "performBuild" failure into a `.failed` event.
+        let key = request.tags.first ?? request.contextDir
+        let (events, failure, delay): ([BuildEvent], String?, Duration?) = lock.withLock {
+            calls.append("performBuild:\(key)")
+            return (scriptedBuildEvents, failures["performBuild"], delays["performBuild"])
+        }
+        return AsyncStream { continuation in
+            let task = Task {
+                if let delay { try? await Task.sleep(for: delay) }
+                if Task.isCancelled {
+                    continuation.yield(.phase(.failed(message: "Cancelled")))
+                    continuation.finish()
+                    return
+                }
+                if let failure {
+                    continuation.yield(.phase(.failed(message: failure)))
+                } else {
+                    for event in events { continuation.yield(event) }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
 }
 #endif

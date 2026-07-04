@@ -71,7 +71,7 @@ struct DetailView: View {
         case .networks: NetworksScreen()
         case .system: SystemScreen()
         case .registries: RegistriesScreen()
-        case .builds: ComingSoon(item: model.selection)   // deferred (gRPC build path)
+        case .builds: BuildsScreen()
         }
     }
 }

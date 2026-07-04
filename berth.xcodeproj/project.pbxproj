@@ -14,6 +14,7 @@
 		BE0000000000000000000011 /* ContainerPersistence in Frameworks */ = {isa = PBXBuildFile; productRef = BE0000000000000000000010 /* ContainerPersistence */; };
 		BE0000000000000000000013 /* ContainerizationOS in Frameworks */ = {isa = PBXBuildFile; productRef = BE0000000000000000000012 /* ContainerizationOS */; };
 		BE0000000000000000000015 /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = BE0000000000000000000014 /* TerminalProgress */; };
+		BE0000000000000000000016 /* ContainerBuild in Frameworks */ = {isa = PBXBuildFile; productRef = BE0000000000000000000017 /* ContainerBuild */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 				BE0000000000000000000011 /* ContainerPersistence in Frameworks */,
 				BE0000000000000000000013 /* ContainerizationOS in Frameworks */,
 				BE0000000000000000000015 /* TerminalProgress in Frameworks */,
+				BE0000000000000000000016 /* ContainerBuild in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -114,6 +116,7 @@
 				BE0000000000000000000010 /* ContainerPersistence */,
 				BE0000000000000000000012 /* ContainerizationOS */,
 				BE0000000000000000000014 /* TerminalProgress */,
+				BE0000000000000000000017 /* ContainerBuild */,
 			);
 			productName = berth;
 			productReference = C823487A2FF1A4D200027ABF /* berth.app */;
@@ -528,6 +531,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BE0000000000000000000001 /* XCRemoteSwiftPackageReference "container" */;
 			productName = TerminalProgress;
+		};
+		BE0000000000000000000017 /* ContainerBuild */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BE0000000000000000000001 /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerBuild;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
