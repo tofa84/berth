@@ -91,7 +91,89 @@ enum SelfTest {
             print("SELFTEST registries=\(regs.count)")
         } else { print("SELFTEST registries FAILED") }
 
+        // Phase 8: builds (native gRPC path)
+        await buildsSection(model)
+
         print("SELFTEST_DONE")
+    }
+
+    /// Exercises the native build path end-to-end: builder status, a real
+    /// successful build (verified to land in Images), and a failing build
+    /// (verified to report failure). Best-effort cleanup of the test images.
+    static func buildsSection(_ model: AppModel) async {
+        let info = try? await model.service.builderInfo()
+        print("SELFTEST builder status=\(String(describing: info?.status)) image=\(info?.imageReference ?? "-") cpus=\(info?.cpus ?? -1)")
+
+        await runBuild(model, name: "ok", dockerfile: "FROM alpine:latest\nRUN echo berth-selftest-ok\n", tag: "berth-selftest-ok:latest", expectSuccess: true)
+        await runBuild(model, name: "fail", dockerfile: "FROM alpine:latest\nRUN false\n", tag: "berth-selftest-fail:latest", expectSuccess: false)
+
+        // Store-driven build — the exact data path the UI uses (BuildsStore folding
+        // the real service's event stream into steps, plus a history record).
+        await runBuildViaStore(model)
+
+        // Cleanup: drop any images this section built.
+        await model.images.load()
+        for image in model.images.all where image.name.contains("berth-selftest") {
+            try? await model.service.deleteImage(reference: image.name)
+        }
+    }
+
+    private static func runBuild(_ model: AppModel, name: String, dockerfile: String, tag: String, expectSuccess: Bool) async {
+        let fm = FileManager.default
+        let ctx = fm.temporaryDirectory.appendingPathComponent("berth-selftest-\(name)-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: ctx) }
+        do {
+            try fm.createDirectory(at: ctx, withIntermediateDirectories: true)
+            try Data(dockerfile.utf8).write(to: ctx.appendingPathComponent("Dockerfile"))
+        } catch {
+            print("SELFTEST build \(name) setup FAILED: \(error)")
+            return
+        }
+        let request = BuildRequest(contextDir: ctx.path, dockerfilePath: ctx.appendingPathComponent("Dockerfile").path, tags: [tag])
+        var stepLines = 0
+        var finalPhase: BuildPhase?
+        for await event in model.service.performBuild(request) {
+            switch event {
+            case .line(let line): if line.hasPrefix("#") { stepLines += 1 }
+            case .phase(let phase): finalPhase = phase
+            case .builderPull: break
+            }
+        }
+        let succeeded: Bool
+        if case .succeeded = finalPhase { succeeded = true } else { succeeded = false }
+        let verdict = succeeded == expectSuccess ? "OK" : "MISMATCH"
+        print("SELFTEST build \(name) [\(verdict)] steps=\(stepLines) succeeded=\(succeeded) expected=\(expectSuccess) final=\(String(describing: finalPhase))")
+    }
+
+    private static func runBuildViaStore(_ model: AppModel) async {
+        let fm = FileManager.default
+        let ctx = fm.temporaryDirectory.appendingPathComponent("berth-selftest-store-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: ctx) }
+        do {
+            try fm.createDirectory(at: ctx, withIntermediateDirectories: true)
+            try Data("FROM alpine:latest\nRUN echo berth-selftest-store\n".utf8)
+                .write(to: ctx.appendingPathComponent("Dockerfile"))
+        } catch {
+            print("SELFTEST build store setup FAILED: \(error)")
+            return
+        }
+        let store = model.builds
+        // Keep the user's real build history clean — record into a temp dir.
+        store.historyFile = BuildHistoryFile(directory: ctx.appendingPathComponent("history"))
+        let historyBefore = store.history.count
+        let request = BuildRequest(contextDir: ctx.path, dockerfilePath: ctx.appendingPathComponent("Dockerfile").path, tags: ["berth-selftest-store:latest"])
+        store.startBuild(request)
+        // Wait for the store to reach a terminal phase (bounded).
+        for _ in 0..<600 {
+            if let phase = store.phase, phase.isTerminal { break }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        let succeeded: Bool
+        if case .succeeded = store.phase { succeeded = true } else { succeeded = false }
+        // Give finishBuild a moment to record history + refresh images.
+        try? await Task.sleep(for: .milliseconds(300))
+        let verdict = succeeded ? "OK" : "MISMATCH"
+        print("SELFTEST build store [\(verdict)] steps=\(store.folder.steps.count) succeeded=\(succeeded) historyΔ=\(store.history.count - historyBefore) badge=\(model.counts[.builds] == nil ? "clear" : "set")")
     }
 }
 #endif

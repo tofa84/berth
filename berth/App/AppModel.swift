@@ -94,6 +94,18 @@ final class AppModel {
         return s
     }
 
+    @ObservationIgnored private var _builds: BuildsStore?
+    var builds: BuildsStore {
+        if let s = _builds { return s }
+        let s = BuildsStore(service: service, app: self)
+        _builds = s
+        return s
+    }
+
+    /// When set, the next Build sheet opens pre-filled with this request (e.g.
+    /// re-running a history entry). Consumed once by BuildSheet.
+    var buildPrefill: BuildRequest?
+
     init(service: any ContainerServicing = ContainerService()) {
         self.service = service
         engine = EngineConnection(service: service)

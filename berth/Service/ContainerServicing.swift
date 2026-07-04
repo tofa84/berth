@@ -79,6 +79,16 @@ nonisolated protocol ContainerServicing: Sendable {
     func listRegistries() async throws -> [ContainerResource.RegistryResource]
     func loginRegistry(host: String, username: String, password: String) async throws
     func logoutRegistry(host: String) async throws
+
+    // Builds — builder lifecycle
+    func builderInfo() async throws -> BuilderInfo
+    func startBuilder(progress: (@Sendable (PullProgress) -> Void)?) async throws
+    func stopBuilder() async throws
+    func deleteBuilder(force: Bool) async throws
+
+    // Builds — execution. Like `logStream`: stream-shaped, cancellation via the
+    // consuming task. Never throws — failures arrive as `.phase(.failed(_))`.
+    func performBuild(_ request: BuildRequest) -> AsyncStream<BuildEvent>
 }
 
 // Protocols can't carry default arguments, so the call-site conveniences the
@@ -90,5 +100,13 @@ nonisolated extension ContainerServicing {
 
     func killContainer(id: String) async throws {
         try await killContainer(id: id, signal: "SIGKILL")
+    }
+
+    func startBuilder() async throws {
+        try await startBuilder(progress: nil)
+    }
+
+    func deleteBuilder() async throws {
+        try await deleteBuilder(force: false)
     }
 }

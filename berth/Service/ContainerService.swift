@@ -21,11 +21,16 @@ actor ContainerService: ContainerServicing {
     /// `ClientHealthCheck` work. A single cached client would keep a long-lived
     /// connection that goes invalid when the engine restarts ("XPC connection
     /// error: Connection invalid"), wedging every container call until relaunch.
-    private nonisolated func makeClient() -> ContainerClient { ContainerClient() }
+    nonisolated func makeClient() -> ContainerClient { ContainerClient() }
     private var _config: ContainerSystemConfig?
 
+    /// Single-flight guard for `performBuild` — the builder handles one build at
+    /// a time. The store is the primary gate; this protects SelfTest and any
+    /// future second caller. See `ContainerService+Build`.
+    var buildInFlight = false
+
     /// The engine's system configuration (registry/dns defaults), loaded once.
-    private func config() async throws -> ContainerSystemConfig {
+    func config() async throws -> ContainerSystemConfig {
         if let c = _config { return c }
         let c = try await ConfigurationLoader.load()
         _config = c
