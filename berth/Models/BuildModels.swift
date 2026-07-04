@@ -77,10 +77,11 @@ enum BuildPhase: Sendable, Equatable {
     case importing(String)          // "Loading image", "Unpacking", "Tagging"
     case succeeded(tags: [String])
     case failed(message: String)
+    case cancelled
 
     var isTerminal: Bool {
         switch self {
-        case .succeeded, .failed: return true
+        case .succeeded, .failed, .cancelled: return true
         case .preparingBuilder, .building, .importing: return false
         }
     }

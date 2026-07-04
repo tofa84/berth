@@ -118,9 +118,4 @@ final class ContainerStreams {
     func stopAll() { stopLogs(); stopStats() }
 
     var coresForDisplay: Double { cores }
-
-    var memoryFraction: Double {
-        guard let used = latest?.memoryUsageBytes, let limit = latest?.memoryLimitBytes, limit > 0 else { return 0 }
-        return Double(used) / Double(limit)
-    }
 }

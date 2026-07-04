@@ -28,83 +28,23 @@ final class AppModel {
     /// Optional sidebar badge counts, filled in by feature phases.
     var counts: [SidebarItem: Int] = [:]
 
-    /// Shared single-flight source for the container list (see ContainersFeed).
-    @ObservationIgnored private var _containersFeed: ContainersFeed?
-    var containersFeed: ContainersFeed {
-        if let f = _containersFeed { return f }
-        let f = ContainersFeed(service: service, app: self)
-        _containersFeed = f
-        return f
-    }
-
-    // Lazily-created per-screen stores.
-    @ObservationIgnored private var _containers: ContainersStore?
-    var containers: ContainersStore {
-        if let s = _containers { return s }
-        let s = ContainersStore(service: service, app: self)
-        _containers = s
-        return s
-    }
-
-    @ObservationIgnored private var _dashboard: DashboardStore?
-    var dashboard: DashboardStore {
-        if let s = _dashboard { return s }
-        let s = DashboardStore(service: service, app: self)
-        _dashboard = s
-        return s
-    }
-
-    @ObservationIgnored private var _images: ImagesStore?
-    var images: ImagesStore {
-        if let s = _images { return s }
-        let s = ImagesStore(service: service, app: self)
-        _images = s
-        return s
-    }
-
-    @ObservationIgnored private var _volumes: VolumesStore?
-    var volumes: VolumesStore {
-        if let s = _volumes { return s }
-        let s = VolumesStore(service: service, app: self)
-        _volumes = s
-        return s
-    }
-
-    @ObservationIgnored private var _networks: NetworksStore?
-    var networks: NetworksStore {
-        if let s = _networks { return s }
-        let s = NetworksStore(service: service, app: self)
-        _networks = s
-        return s
-    }
-
-    @ObservationIgnored private var _system: SystemStore?
-    var system: SystemStore {
-        if let s = _system { return s }
-        let s = SystemStore(service: service, app: self)
-        _system = s
-        return s
-    }
-
-    @ObservationIgnored private var _registries: RegistriesStore?
-    var registries: RegistriesStore {
-        if let s = _registries { return s }
-        let s = RegistriesStore(service: service, app: self)
-        _registries = s
-        return s
-    }
-
-    @ObservationIgnored private var _builds: BuildsStore?
-    var builds: BuildsStore {
-        if let s = _builds { return s }
-        let s = BuildsStore(service: service, app: self)
-        _builds = s
-        return s
-    }
-
     /// When set, the next Build sheet opens pre-filled with this request (e.g.
     /// re-running a history entry). Consumed once by BuildSheet.
     var buildPrefill: BuildRequest?
+
+    /// Shared single-flight source for the container list (see ContainersFeed).
+    @ObservationIgnored lazy var containersFeed = ContainersFeed(service: service, app: self)
+
+    // Lazily-created per-screen stores. Only the stores' own @Observable state
+    // drives the UI, so the references themselves stay observation-ignored.
+    @ObservationIgnored lazy var containers = ContainersStore(service: service, app: self)
+    @ObservationIgnored lazy var dashboard = DashboardStore(service: service, app: self)
+    @ObservationIgnored lazy var images = ImagesStore(service: service, app: self)
+    @ObservationIgnored lazy var volumes = VolumesStore(service: service, app: self)
+    @ObservationIgnored lazy var networks = NetworksStore(service: service, app: self)
+    @ObservationIgnored lazy var system = SystemStore(service: service, app: self)
+    @ObservationIgnored lazy var registries = RegistriesStore(service: service, app: self)
+    @ObservationIgnored lazy var builds = BuildsStore(service: service, app: self)
 
     init(service: any ContainerServicing = ContainerService()) {
         self.service = service

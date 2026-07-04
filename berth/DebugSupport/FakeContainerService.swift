@@ -227,7 +227,7 @@ nonisolated final class FakeContainerService: ContainerServicing, @unchecked Sen
             let task = Task {
                 if let delay { try? await Task.sleep(for: delay) }
                 if Task.isCancelled {
-                    continuation.yield(.phase(.failed(message: "Cancelled")))
+                    continuation.yield(.phase(.cancelled))
                     continuation.finish()
                     return
                 }

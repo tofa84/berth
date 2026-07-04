@@ -101,13 +101,11 @@ struct SystemScreen: View {
     }
 
     private func hostCard() -> some View {
-        let info = ProcessInfo.processInfo
-        let gb = Int((Double(info.physicalMemory) / 1_073_741_824).rounded())
-        return InfoCard(title: "Host") {
+        InfoCard(title: "Host") {
             KeyValue("Hostname", DisplayHost.name)
-            KeyValue("CPU cores", "\(info.processorCount)")
-            KeyValue("Memory", "\(gb)\u{202F}GB")
-            KeyValue("macOS", info.operatingSystemVersionString)
+            KeyValue("CPU cores", "\(HostInfo.cores)")
+            KeyValue("Memory", "\(HostInfo.memoryGB)\u{202F}GB")
+            KeyValue("macOS", ProcessInfo.processInfo.operatingSystemVersionString)
         }
     }
 }

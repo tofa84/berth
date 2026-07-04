@@ -117,8 +117,8 @@ final class BuildsStore {
     func cancelBuild() {
         buildTask?.cancel()
         // The stream ends; `finishBuild` normalizes a still-running phase to
-        // Cancelled. Setting it here too keeps the UI responsive immediately.
-        if isBuilding { phase = .failed(message: "Cancelled") }
+        // .cancelled. Setting it here too keeps the UI responsive immediately.
+        if isBuilding { phase = .cancelled }
     }
 
     private func flushPending() {
@@ -135,7 +135,7 @@ final class BuildsStore {
 
     private func finishBuild() async {
         if let phase, !phase.isTerminal {
-            self.phase = .failed(message: "Cancelled")
+            self.phase = .cancelled
         }
         buildTask = nil
         flushTask = nil
@@ -154,7 +154,8 @@ final class BuildsStore {
         let outcome: BuildRecord.Outcome
         switch phase {
         case .succeeded(let tags): outcome = .succeeded(tags: tags)
-        case .failed(let message): outcome = message == "Cancelled" ? .cancelled : .failed(message: message)
+        case .failed(let message): outcome = .failed(message: message)
+        case .cancelled: outcome = .cancelled
         default: return  // non-terminal — shouldn't happen here
         }
         let record = BuildRecord(
@@ -165,10 +166,5 @@ final class BuildsStore {
             duration: buildStartedAt.map { Date().timeIntervalSince($0) } ?? 0)
         try? historyFile.append(record)
         history = historyFile.load()
-    }
-
-    /// Re-run a past build: hand its request to the sheet.
-    func rerun(_ record: BuildRecord) {
-        app.buildPrefill = record.request
     }
 }

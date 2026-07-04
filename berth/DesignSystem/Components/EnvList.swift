@@ -20,7 +20,7 @@ struct EnvList: View {
     var body: some View {
         Grid(alignment: .topLeading, horizontalSpacing: 14, verticalSpacing: 7) {
             ForEach(items, id: \.self) { item in
-                let (key, value) = Self.split(item)
+                let (key, value) = KeyValueEntry.split(item)
                 GridRow {
                     Text(key)
                         .font(.berthMono(11)).foregroundStyle(Theme.textTertiary)
@@ -53,12 +53,5 @@ struct EnvList: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Split a `KEY=VALUE` entry at the *first* `=` — values may contain `=`
-    /// themselves. Entries without one become a key with an empty value.
-    nonisolated static func split(_ entry: String) -> (key: String, value: String) {
-        guard let eq = entry.firstIndex(of: "=") else { return (entry, "") }
-        return (String(entry[..<eq]), String(entry[entry.index(after: eq)...]))
     }
 }

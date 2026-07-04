@@ -23,9 +23,9 @@ struct BuildFormModelTests {
         m.contextDir = "/ctx"
         m.tag = "app:1.0"
         m.dockerfileOverride = "/ctx/Dockerfile.prod"
-        var arg = BuildFormModel.KV(); arg.key = "VER"; arg.value = "1"
+        var arg = KeyValueField(); arg.key = "VER"; arg.value = "1"
         m.buildArgs = [arg]
-        var label = BuildFormModel.KV(); label.key = "team"; label.value = "infra"
+        var label = KeyValueField(); label.key = "team"; label.value = "infra"
         m.labels = [label]
         m.target = "runtime"
         m.platformARM64 = true
@@ -48,7 +48,7 @@ struct BuildFormModelTests {
         let m = BuildFormModel()
         m.contextDir = "/ctx"
         m.tag = "t"
-        m.buildArgs = [BuildFormModel.KV(), { var k = BuildFormModel.KV(); k.key = "A"; k.value = "B"; return k }()]
+        m.buildArgs = [KeyValueField(), { var k = KeyValueField(); k.key = "A"; k.value = "B"; return k }()]
         #expect(m.argv == ["build", "-t", "t", "--build-arg", "A=B", "--platform", "linux/arm64", "/ctx"])
     }
 
@@ -121,8 +121,8 @@ struct BuildFormModelTests {
         let m = BuildFormModel(fileExists: { _ in true }, fileSize: { _ in nil })
         m.contextDir = "/ctx"
         m.tag = "app:latest"
-        var arg = BuildFormModel.KV(); arg.key = "K"; arg.value = "V"
-        m.buildArgs = [arg, BuildFormModel.KV()]  // second (empty) is filtered
+        var arg = KeyValueField(); arg.key = "K"; arg.value = "V"
+        m.buildArgs = [arg, KeyValueField()]  // second (empty) is filtered
         m.platformAMD64 = true
         let request = m.request()
         #expect(request.contextDir == "/ctx")

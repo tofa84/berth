@@ -62,7 +62,6 @@ struct DetailView: View {
     }
 
     @ViewBuilder private var screen: some View {
-        // Real screens are routed here as each phase lands; placeholder until then.
         switch model.selection {
         case .dashboard: DashboardScreen()
         case .containers: ContainersScreen()
@@ -88,22 +87,6 @@ struct VersionBanner: View {
         .foregroundStyle(Theme.amber)
         .padding(.horizontal, 16).padding(.vertical, 8)
         .background(Theme.amber.opacity(0.10))
-    }
-}
-
-struct ComingSoon: View {
-    let item: SidebarItem
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ScreenHeader(title: item.title, subtitle: "Coming soon")
-            Spacer()
-            CenteredMessage(
-                systemImage: item.icon,
-                title: item.title,
-                message: "This screen is part of a later build phase."
-            )
-        }
-        .padding(22)
     }
 }
 

@@ -61,13 +61,7 @@ struct ImageDetailView: View {
 
     private func headerBar(_ img: ContainerResource.ImageResource, _ store: ImagesStore) -> some View {
         HStack(spacing: 14) {
-            Button { store.selectedID = nil } label: {
-                Image(systemName: "chevron.left").font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary).frame(width: 30, height: 30)
-                    .background(Theme.fill).clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.borderStrong, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
+            BackButton { store.selectedID = nil }
 
             Image(systemName: "square.on.square").font(.system(size: 15)).foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 1) {
@@ -93,9 +87,7 @@ struct ImageDetailView: View {
 
     private func copyMenu(_ img: ContainerResource.ImageResource) -> some View {
         Menu {
-            Button("Copy reference") { Pasteboard.copy(img.name) }
-            Button("Copy digest") { Pasteboard.copy(img.fullDigest) }
-            Button("Copy image ID") { Pasteboard.copy(img.shortDigest) }
+            ImageCopyActions(image: img)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "doc.on.doc")
@@ -112,21 +104,7 @@ struct ImageDetailView: View {
     // MARK: Tabs
 
     private var tabBar: some View {
-        HStack(spacing: 22) {
-            ForEach(Tab.allCases, id: \.self) { t in
-                let active = t == tab
-                Text(t.rawValue)
-                    .font(.berthSans(12.5, active ? .semibold : .regular))
-                    .foregroundStyle(active ? Theme.textPrimary : Theme.textTertiary)
-                    .padding(.vertical, 12)
-                    .overlay(alignment: .bottom) { if active { Rectangle().fill(Theme.accent).frame(height: 2) } }
-                    .contentShape(Rectangle())
-                    .onTapGesture { tab = t }
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 22)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+        DetailTabBar(tabs: Tab.allCases, selection: $tab)
     }
 
     @ViewBuilder
@@ -234,7 +212,7 @@ struct ImageDetailView: View {
                 commandText(layer.commandParts).font(.berthMono(11.5))
                     .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                 HStack(spacing: 8) {
-                    Text(historyDate(layer.created)).font(.berthSans(10.5)).foregroundStyle(Theme.textFaint)
+                    Text(Format.relative(iso8601: layer.created)).font(.berthSans(10.5)).foregroundStyle(Theme.textFaint)
                     if layer.empty {
                         Text("empty").font(.berthSans(10)).foregroundStyle(Theme.textFaint)
                             .padding(.horizontal, 6).padding(.vertical, 1)
@@ -263,16 +241,7 @@ struct ImageDetailView: View {
     // MARK: Inspect
 
     private func inspect(_ img: ContainerResource.ImageResource) -> some View {
-        ScrollView(.horizontal) {
-            Text(json(img))
-                .font(.berthMono(11.5)).foregroundStyle(Theme.textSecondary)
-                .textSelection(.enabled).padding(16)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 460)
-        .background(Theme.codeBg)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(Theme.border, lineWidth: 1))
+        InspectPanel(json: Format.prettyJSON(img))
     }
 
     // MARK: Helpers
@@ -280,25 +249,5 @@ struct ImageDetailView: View {
     private func usedByText(_ img: ContainerResource.ImageResource) -> String {
         let n = model.images.usedBy(img)
         return n == 0 ? "Not in use" : "\(n) container\(n == 1 ? "" : "s")"
-    }
-
-    private func historyDate(_ s: String) -> String {
-        guard !s.isEmpty else { return "—" }
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let d = withFraction.date(from: s) ?? ISO8601DateFormatter().date(from: s) {
-            return Format.relative(d)
-        }
-        return s
-    }
-
-    private func json(_ img: ContainerResource.ImageResource) -> String {
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        enc.dateEncodingStrategy = .iso8601
-        guard let data = try? enc.encode(img), let s = String(data: data, encoding: .utf8) else {
-            return "Failed to encode image."
-        }
-        return s
     }
 }

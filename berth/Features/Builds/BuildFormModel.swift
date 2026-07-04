@@ -15,14 +15,12 @@ import Observation
 @MainActor
 @Observable
 final class BuildFormModel {
-    struct KV: Identifiable { let id = UUID(); var key = ""; var value = "" }
-
     var contextDir = ""
     /// Empty → `<contextDir>/Dockerfile`.
     var dockerfileOverride = ""
     var tag = ""
-    var buildArgs: [KV] = []
-    var labels: [KV] = []
+    var buildArgs: [KeyValueField] = []
+    var labels: [KeyValueField] = []
     var target = ""
     var platformARM64 = true
     var platformAMD64 = false
@@ -94,9 +92,7 @@ final class BuildFormModel {
         return a
     }
 
-    var commandPreview: String {
-        "container " + argv.map(Self.quote).joined(separator: " ")
-    }
+    var commandPreview: String { CommandPreview.container(argv) }
 
     func request() -> BuildRequest {
         BuildRequest(
@@ -111,8 +107,8 @@ final class BuildFormModel {
             pull: pull)
     }
 
-    func addArg() { buildArgs.append(KV()) }
-    func addLabel() { labels.append(KV()) }
+    func addArg() { buildArgs.append(KeyValueField()) }
+    func addLabel() { labels.append(KeyValueField()) }
 
     /// Pre-fill the form from a prior request (re-run).
     func fill(from request: BuildRequest) {
@@ -120,27 +116,12 @@ final class BuildFormModel {
         let defaultDockerfile = (request.contextDir as NSString).appendingPathComponent("Dockerfile")
         dockerfileOverride = request.dockerfilePath == defaultDockerfile ? "" : request.dockerfilePath
         tag = request.tags.first ?? ""
-        buildArgs = request.buildArgs.map(Self.keyValue(from:))
-        labels = request.labels.map(Self.keyValue(from:))
+        buildArgs = request.buildArgs.map(KeyValueField.init(entry:))
+        labels = request.labels.map(KeyValueField.init(entry:))
         target = request.target
         platformARM64 = request.platforms.contains("linux/arm64")
         platformAMD64 = request.platforms.contains("linux/amd64")
         noCache = request.noCache
         pull = request.pull
-    }
-
-    private static func keyValue(from entry: String) -> KV {
-        var kv = KV()
-        if let eq = entry.firstIndex(of: "=") {
-            kv.key = String(entry[..<eq])
-            kv.value = String(entry[entry.index(after: eq)...])
-        } else {
-            kv.key = entry
-        }
-        return kv
-    }
-
-    private static func quote(_ s: String) -> String {
-        s.contains(" ") ? "\"\(s)\"" : s
     }
 }

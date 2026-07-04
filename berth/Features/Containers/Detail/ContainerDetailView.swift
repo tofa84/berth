@@ -54,13 +54,7 @@ struct ContainerDetailView: View {
 
     private func headerBar(_ c: ContainerSnapshot, _ store: ContainersStore) -> some View {
         HStack(spacing: 14) {
-            Button { store.selectedID = nil } label: {
-                Image(systemName: "chevron.left").font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Theme.textSecondary).frame(width: 30, height: 30)
-                    .background(Theme.fill).clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.borderStrong, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
+            BackButton { store.selectedID = nil }
 
             StatusDot(color: c.status.color, pulse: c.isRunning, size: 9)
             VStack(alignment: .leading, spacing: 1) {
@@ -90,23 +84,7 @@ struct ContainerDetailView: View {
     // MARK: Tabs
 
     private var tabBar: some View {
-        HStack(spacing: 22) {
-            ForEach(DetailTab.allCases, id: \.self) { t in
-                let active = t == tab
-                Text(t.rawValue)
-                    .font(.berthSans(12.5, active ? .semibold : .regular))
-                    .foregroundStyle(active ? Theme.textPrimary : Theme.textTertiary)
-                    .padding(.vertical, 12)
-                    .overlay(alignment: .bottom) {
-                        if active { Rectangle().fill(Theme.accent).frame(height: 2) }
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture { tab = t }
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 22)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.border).frame(height: 1) }
+        DetailTabBar(tabs: DetailTab.allCases, selection: $tab)
     }
 
     // MARK: Content
@@ -156,9 +134,7 @@ struct ContainerDetailView: View {
             }
         }
         .frame(height: 400)
-        .background(Theme.codeBg)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(Theme.border, lineWidth: 1))
+        .codePanel()
     }
 
     /// One log line: dimmed timestamp, level in a fixed column colored by
@@ -287,82 +263,10 @@ struct ContainerDetailView: View {
     }
 
     private func inspect(_ c: ContainerSnapshot) -> some View {
-        ScrollView(.horizontal) {
-            Text(json(c))
-                .font(.berthMono(11.5))
-                .foregroundStyle(Theme.textSecondary)
-                .textSelection(.enabled)
-                .padding(16)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 460)
-        .background(Theme.codeBg)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(Theme.border, lineWidth: 1))
-    }
-
-    private func json(_ c: ContainerSnapshot) -> String {
-        let enc = JSONEncoder()
-        enc.outputFormatting = [.prettyPrinted, .sortedKeys]
-        enc.dateEncodingStrategy = .iso8601
-        guard let data = try? enc.encode(c), let s = String(data: data, encoding: .utf8) else {
-            return "Failed to encode container."
-        }
-        return s
+        InspectPanel(json: Format.prettyJSON(c))
     }
 
     private func shortPath(_ p: String) -> String {
         (p as NSString).lastPathComponent.isEmpty ? p : (p as NSString).lastPathComponent
-    }
-}
-
-// MARK: - Small detail building blocks
-
-struct InfoCard<Content: View>: View {
-    let title: String
-    /// Stretch to fill the row height so paired cards stay the same size.
-    var fill: Bool = false
-    @ViewBuilder var content: Content
-    var body: some View {
-        Card(fill: fill) {
-            VStack(alignment: .leading, spacing: 12) {
-                SectionCaption(text: title)
-                // Hairlines between the rows make the key/value list scannable;
-                // single-child cards (e.g. Environment) get none.
-                VStack(alignment: .leading, spacing: 0) {
-                    Group(subviews: content) { subviews in
-                        ForEach(Array(subviews.enumerated()), id: \.offset) { index, subview in
-                            if index > 0 { Divider().overlay(Theme.border).padding(.vertical, 5.5) }
-                            subview
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct KeyValue: View {
-    let key: String
-    let value: String
-    init(_ key: String, _ value: String) { self.key = key; self.value = value }
-    var body: some View {
-        // Fixed label column with the value right next to it — the eye never
-        // has to jump across the card to find a short value.
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(key).font(.berthSans(12.5)).foregroundStyle(Theme.textTertiary)
-                .frame(width: 96, alignment: .leading)
-            Text(value).font(.berthMono(12)).foregroundStyle(Theme.textSecondary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-struct TabPlaceholder: View {
-    let text: String
-    var body: some View {
-        Text(text).font(.berthSans(12.5)).foregroundStyle(Theme.textTertiary)
-            .frame(maxWidth: .infinity, minHeight: 200)
     }
 }

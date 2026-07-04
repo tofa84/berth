@@ -47,6 +47,19 @@ enum Format {
         return f.localizedString(for: date, relativeTo: now)
     }
 
+    /// `relative(_:)` from a raw RFC-3339 string (OCI image history entries),
+    /// with or without fractional seconds. Empty input renders the dash;
+    /// unparseable input passes through verbatim.
+    static func relative(iso8601 raw: String, now: Date = Date()) -> String {
+        guard !raw.isEmpty else { return "—" }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = fractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) else {
+            return raw
+        }
+        return relative(date, now: now)
+    }
+
     /// Short percentage from a 0...1 fraction, e.g. "43%" (en) / "43 %" (de).
     static func percent(_ fraction: Double, locale: Locale = .autoupdatingCurrent) -> String {
         percent(points: fraction * 100, digits: 0, locale: locale)
@@ -72,5 +85,18 @@ enum Format {
     /// the error provides one, otherwise the default interpolation.
     static func error(_ error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? "\(error)"
+    }
+
+    /// Pretty-printed JSON for the Inspect tabs — deterministic key order,
+    /// ISO-8601 dates.
+    static func prettyJSON(_ value: some Encodable) -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(value),
+              let text = String(data: data, encoding: .utf8) else {
+            return "Failed to encode."
+        }
+        return text
     }
 }

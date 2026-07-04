@@ -53,7 +53,7 @@ struct ImagesScreen: View {
 
             switch store.state {
             case .idle, .loading:
-                ProgressView().controlSize(.large).frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingPlaceholder()
             case .failed(let m):
                 CenteredMessage(systemImage: "exclamationmark.triangle", title: "Couldn’t load images", message: m)
             case .loaded:
@@ -88,17 +88,12 @@ struct ImagesScreen: View {
         } message: {
             Text("Permanently removes every image not used by a container, and reclaims orphaned data.")
         }
-        .confirmationDialog("Delete image?",
-                            isPresented: Binding(get: { pendingDelete != nil },
-                                                 set: { if !$0 { pendingDelete = nil } }),
-                            titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                if let ref = pendingDelete { Task { await store.delete(ref) } }
-                pendingDelete = nil
-            }
-            Button("Cancel", role: .cancel) { pendingDelete = nil }
-        } message: {
-            Text("Removes the image from local storage. This can’t be undone.")
+        .deleteConfirmation(
+            item: $pendingDelete,
+            title: "Delete image?",
+            message: "Removes the image from local storage. This can’t be undone."
+        ) { ref in
+            Task { await store.delete(ref) }
         }
     }
 
@@ -127,26 +122,16 @@ struct ImagesScreen: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            cell("REPOSITORY", nil)
-            cell("TAG", cols.tag)
-            cell("IMAGE ID", cols.id)
-            cell("OS / ARCH", cols.arch)
-            cell("SIZE", cols.size, alignment: .trailing)
-            cell("CREATED", cols.created)
-            cell("USED BY", cols.used)
+            HeaderCell("REPOSITORY", width: nil)
+            HeaderCell("TAG", width: cols.tag)
+            HeaderCell("IMAGE ID", width: cols.id)
+            HeaderCell("OS / ARCH", width: cols.arch)
+            HeaderCell("SIZE", width: cols.size, alignment: .trailing)
+            HeaderCell("CREATED", width: cols.created)
+            HeaderCell("USED BY", width: cols.used)
             Spacer().frame(width: cols.actions + cols.chevron)
         }
-        .font(.berthSans(10, .semibold)).tracking(0.7).foregroundStyle(Theme.textFaint)
         .padding(.horizontal, 22).padding(.bottom, 8)
-    }
-
-    private func cell(_ t: String, _ w: Double?, alignment: Alignment = .leading) -> some View {
-        Text(t)
-            // Right-aligned columns keep a gutter inside their fixed frame so
-            // the digits don't touch the next column (the HStack has spacing 0).
-            .padding(.trailing, alignment == .trailing ? 12 : 0)
-            .frame(width: w.map { CGFloat($0) }, alignment: alignment)
-            .frame(maxWidth: w == nil ? .infinity : nil, alignment: alignment)
     }
 
     private func row(_ img: ContainerResource.ImageResource, _ store: ImagesStore) -> some View {
@@ -156,28 +141,23 @@ struct ImagesScreen: View {
             Text(img.repository).font(.berthSans(13)).foregroundStyle(Theme.textPrimary)
                 .lineLimit(1).truncationMode(.middle).help(img.repository)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 10)
-            mono(img.tag, cols.tag, help: img.tag)
-            mono(img.shortDigest, cols.id)
-            mono(img.archSummaryText, cols.arch, help: img.platformsText)
-            mono(Format.bytes(img.totalSize), cols.size, alignment: .trailing)
-            mono(Format.relative(img.creationDate), cols.created)
-            mono(store.usedBy(img) == 0 ? "—" : "\(store.usedBy(img))", cols.used)
+            MonoCell(img.tag, width: cols.tag, help: img.tag)
+            MonoCell(img.shortDigest, width: cols.id)
+            MonoCell(img.archSummaryText, width: cols.arch, help: img.platformsText)
+            MonoCell(Format.bytes(img.totalSize), width: cols.size, alignment: .trailing)
+            MonoCell(Format.relative(img.creationDate), width: cols.created)
+            MonoCell(store.usedBy(img) == 0 ? "—" : "\(store.usedBy(img))", width: cols.used)
 
             HStack(spacing: 6) {
-                Button { model.openRunSheet(image: img.name) } label: {
-                    Image(systemName: "play.fill").font(.system(size: 11)).foregroundStyle(Theme.greenBright)
-                        .frame(width: 28, height: 28)
-                        .background(Theme.fill).clipShape(RoundedRectangle(cornerRadius: 7))
-                        .overlay(RoundedRectangle(cornerRadius: 7).stroke(Theme.borderStrong, lineWidth: 1))
+                RowIconButton(systemImage: "play.fill", tint: Theme.greenBright,
+                              help: "Run a container from this image") {
+                    model.openRunSheet(image: img.name)
                 }
-                .buttonStyle(.plain).help("Run a container from this image")
 
                 Menu {
                     Button("Run…") { model.openRunSheet(image: img.name) }
                     Divider()
-                    Button("Copy reference") { Pasteboard.copy(img.name) }
-                    Button("Copy digest") { Pasteboard.copy(img.fullDigest) }
-                    Button("Copy image ID") { Pasteboard.copy(img.shortDigest) }
+                    ImageCopyActions(image: img)
                     Divider()
                     Button("Delete", role: .destructive) { pendingDelete = img.name }
                 } label: {
@@ -194,14 +174,6 @@ struct ImagesScreen: View {
         .padding(.horizontal, 22).frame(height: 52)
         .contentShape(Rectangle())
         .onTapGesture { store.selectedID = img.name }
-    }
-
-    @ViewBuilder
-    private func mono(_ t: String, _ w: Double, alignment: Alignment = .leading, help: String? = nil) -> some View {
-        let text = Text(t).font(.berthMono(11.5)).foregroundStyle(Theme.textSecondary).lineLimit(1)
-            .padding(.trailing, alignment == .trailing ? 12 : 0)
-            .frame(width: w, alignment: alignment)
-        if let help { text.help(help) } else { text }
     }
 
     // MARK: Pull sheet
@@ -244,5 +216,16 @@ struct ImagesScreen: View {
                 }
             }
         }
+    }
+}
+
+/// The copy actions every image menu offers (list row menu, detail Copy menu).
+struct ImageCopyActions: View {
+    let image: ContainerResource.ImageResource
+
+    var body: some View {
+        Button("Copy reference") { Pasteboard.copy(image.name) }
+        Button("Copy digest") { Pasteboard.copy(image.fullDigest) }
+        Button("Copy image ID") { Pasteboard.copy(image.shortDigest) }
     }
 }
