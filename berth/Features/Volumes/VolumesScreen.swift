@@ -32,7 +32,7 @@ struct VolumesScreen: View {
 
             switch store.state {
             case .idle, .loading:
-                ProgressView().controlSize(.large).frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingPlaceholder()
             case .failed(let m):
                 CenteredMessage(systemImage: "exclamationmark.triangle", title: "Couldn’t load volumes", message: m)
             case .loaded:
@@ -60,37 +60,26 @@ struct VolumesScreen: View {
         .overlay(alignment: .bottom) { if let e = store.actionError { ErrorToast(text: e) } }
         .task(id: model.engine.epoch) { await store.load() }
         .sheet(isPresented: $showCreate) { createSheet(store) }
-        .confirmationDialog("Delete volume?",
-                            isPresented: Binding(get: { pendingDelete != nil },
-                                                 set: { if !$0 { pendingDelete = nil } }),
-                            titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                if let name = pendingDelete { Task { await store.delete(name) } }
-                pendingDelete = nil
-            }
-            Button("Cancel", role: .cancel) { pendingDelete = nil }
-        } message: {
-            Text("Permanently deletes the volume and all data stored in it.")
+        .deleteConfirmation(
+            item: $pendingDelete,
+            title: "Delete volume?",
+            message: "Permanently deletes the volume and all data stored in it."
+        ) { name in
+            Task { await store.delete(name) }
         }
     }
 
     private var header: some View {
         HStack(spacing: 0) {
-            cell("NAME", nil)
-            cell("DRIVER", cols.driver)
-            cell("SIZE", cols.size)
-            cell("MOUNT POINT", cols.mount)
-            cell("USED BY", cols.used)
-            cell("CREATED", cols.created)
+            HeaderCell("NAME", width: nil)
+            HeaderCell("DRIVER", width: cols.driver)
+            HeaderCell("SIZE", width: cols.size)
+            HeaderCell("MOUNT POINT", width: cols.mount)
+            HeaderCell("USED BY", width: cols.used)
+            HeaderCell("CREATED", width: cols.created)
             Spacer().frame(width: cols.actions)
         }
-        .font(.berthSans(10, .semibold)).tracking(0.7).foregroundStyle(Theme.textFaint)
         .padding(.horizontal, 22).padding(.bottom, 8)
-    }
-
-    private func cell(_ t: String, _ w: Double?) -> some View {
-        Text(t).frame(width: w.map { CGFloat($0) }, alignment: .leading)
-            .frame(maxWidth: w == nil ? .infinity : nil, alignment: .leading)
     }
 
     private func row(_ v: VolumeConfiguration, _ store: VolumesStore) -> some View {
@@ -100,11 +89,11 @@ struct VolumesScreen: View {
                 if v.isAnonymous { Tag("ANON") }
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 10)
-            mono(v.driver, cols.driver)
-            mono(v.sizeText, cols.size)
-            mono(v.mountPoint, cols.mount)
-            mono(store.usedBy(v) == 0 ? "—" : "\(store.usedBy(v))", cols.used)
-            mono(Format.relative(v.creationDate), cols.created)
+            MonoCell(v.driver, width: cols.driver)
+            MonoCell(v.sizeText, width: cols.size)
+            MonoCell(v.mountPoint, width: cols.mount)
+            MonoCell(store.usedBy(v) == 0 ? "—" : "\(store.usedBy(v))", width: cols.used)
+            MonoCell(Format.relative(v.creationDate), width: cols.created)
             Menu {
                 Button("Delete", role: .destructive) { pendingDelete = v.name }
             } label: {
@@ -114,11 +103,6 @@ struct VolumesScreen: View {
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
         }
         .padding(.horizontal, 22).frame(height: 52)
-    }
-
-    private func mono(_ t: String, _ w: Double) -> some View {
-        Text(t).font(.berthMono(11.5)).foregroundStyle(Theme.textSecondary).lineLimit(1)
-            .frame(width: w, alignment: .leading)
     }
 
     private func createSheet(_ store: VolumesStore) -> some View {
@@ -138,15 +122,5 @@ struct VolumesScreen: View {
             let n = newName, s = newSize
             Task { await store.create(name: n, size: s.isEmpty ? nil : s); if store.actionError == nil { newName = ""; newSize = ""; showCreate = false } }
         }
-    }
-}
-
-struct Tag: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-    var body: some View {
-        Text(text).font(.berthMono(9)).foregroundStyle(Theme.textTertiary)
-            .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(Theme.fill).clipShape(RoundedRectangle(cornerRadius: 4))
     }
 }

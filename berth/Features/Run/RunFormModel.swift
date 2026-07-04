@@ -13,13 +13,12 @@ import Observation
 @MainActor
 @Observable
 final class RunFormModel {
-    struct EnvVar: Identifiable { let id = UUID(); var key = ""; var value = "" }
     struct PortMap: Identifiable { let id = UUID(); var host = ""; var container = ""; var udp = false }
 
     var image = ""
     var name = ""
     var arch = "arm64"
-    var env: [EnvVar] = []
+    var env: [KeyValueField] = []
     var ports: [PortMap] = []
     var cpus = 2
     var memoryGB = 1
@@ -53,9 +52,7 @@ final class RunFormModel {
         return a
     }
 
-    var commandPreview: String {
-        "container " + argv.map(Self.quote).joined(separator: " ")
-    }
+    var commandPreview: String { CommandPreview.container(argv) }
 
     /// Execute. Always detached so the GUI never blocks. Returns true on success.
     func run() async -> Bool {
@@ -71,10 +68,6 @@ final class RunFormModel {
         }
     }
 
-    func addEnv() { env.append(EnvVar()) }
+    func addEnv() { env.append(KeyValueField()) }
     func addPort() { ports.append(PortMap()) }
-
-    private static func quote(_ s: String) -> String {
-        s.contains(" ") ? "\"\(s)\"" : s
-    }
 }

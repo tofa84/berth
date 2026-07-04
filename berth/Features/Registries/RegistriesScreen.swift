@@ -26,7 +26,7 @@ struct RegistriesScreen: View {
 
             switch store.state {
             case .idle, .loading:
-                ProgressView().controlSize(.large).frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingPlaceholder()
             case .failed(let m):
                 CenteredMessage(systemImage: "exclamationmark.triangle", title: "Couldn’t read keychain", message: m)
             case .loaded:
@@ -81,9 +81,9 @@ struct RegistriesScreen: View {
                       confirmTitle: store.busy ? "Saving…" : "Log in",
                       confirmDisabled: host.isEmpty || username.isEmpty || store.busy) {
             VStack(alignment: .leading, spacing: 12) {
-                field("Registry host") { FieldText(placeholder: "ghcr.io", text: $host, mono: true) }
-                field("Username") { FieldText(placeholder: "user", text: $username) }
-                field("Password / token") {
+                FormField("Registry host") { FieldText(placeholder: "ghcr.io", text: $host, mono: true) }
+                FormField("Username") { FieldText(placeholder: "user", text: $username) }
+                FormField("Password / token") {
                     SecureField("••••••••", text: $password)
                         .textFieldStyle(.plain).font(.berthMono(12.5)).foregroundStyle(Theme.textPrimary)
                         .padding(.horizontal, 10).frame(height: 32)
@@ -100,13 +100,6 @@ struct RegistriesScreen: View {
                     host = ""; username = ""; password = ""; showAdd = false
                 }
             }
-        }
-    }
-
-    private func field<V: View>(_ title: String, @ViewBuilder _ content: () -> V) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
-            content()
         }
     }
 }

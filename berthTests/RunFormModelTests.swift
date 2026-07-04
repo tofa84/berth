@@ -27,7 +27,7 @@ struct RunFormModelTests {
         m.rosetta = true
         m.cpus = 4
         m.memoryGB = 2
-        var e = RunFormModel.EnvVar(); e.key = "FOO"; e.value = "bar"
+        var e = KeyValueField(); e.key = "FOO"; e.value = "bar"
         m.env = [e]
         var p1 = RunFormModel.PortMap(); p1.host = "8080"; p1.container = "80"
         var p2 = RunFormModel.PortMap(); p2.host = "53"; p2.container = "53"; p2.udp = true
@@ -46,8 +46,8 @@ struct RunFormModelTests {
     @Test func emptyEnvKeyDropped() {
         let m = RunFormModel()
         m.image = "nginx"
-        var empty = RunFormModel.EnvVar(); empty.key = ""; empty.value = "x"
-        var ok = RunFormModel.EnvVar(); ok.key = "A"; ok.value = "b"
+        var empty = KeyValueField(); empty.key = ""; empty.value = "x"
+        var ok = KeyValueField(); ok.key = "A"; ok.value = "b"
         m.env = [empty, ok]
         #expect(m.argv.contains("A=b"))
         #expect(!m.argv.contains("=x"))

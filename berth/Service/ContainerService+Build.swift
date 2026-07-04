@@ -73,7 +73,7 @@ extension ContainerService {
                 do {
                     try await self.runBuild(request, emit: emit)
                 } catch is CancellationError {
-                    emit(.phase(.failed(message: "Cancelled")))
+                    emit(.phase(.cancelled))
                 } catch {
                     emit(.phase(.failed(message: Format.error(error))))
                 }

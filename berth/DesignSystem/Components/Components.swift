@@ -134,6 +134,7 @@ struct AccentButton: View {
     let title: String
     var systemImage: String? = nil
     let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Button(action: action) {
@@ -148,6 +149,7 @@ struct AccentButton: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.5)
     }
 }
 
@@ -247,17 +249,8 @@ struct SheetScaffold<Content: View>: View {
             HStack {
                 Spacer()
                 SecondaryButton(title: "Cancel") { dismiss() }
-                Button(action: confirm) {
-                    Text(confirmTitle)
-                        .font(.berthSans(12.5, .semibold))
-                        .foregroundStyle(Theme.onAccent)
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .background(Theme.accent)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-                .buttonStyle(.plain)
-                .disabled(confirmDisabled)
-                .opacity(confirmDisabled ? 0.5 : 1)
+                AccentButton(title: confirmTitle, action: confirm)
+                    .disabled(confirmDisabled)
             }
         }
         .padding(22)

@@ -62,6 +62,7 @@ struct BuildActivityView: View {
         case .importing(let message): return message
         case .succeeded(let tags): return "Built " + tags.joined(separator: ", ")
         case .failed(let message): return Self.cleanMessage(message)
+        case .cancelled: return "Cancelled"
         case nil: return ""
         }
     }
@@ -80,6 +81,7 @@ struct BuildActivityView: View {
         switch store.phase {
         case .succeeded: return Theme.green
         case .failed: return Theme.red
+        case .cancelled: return Theme.textMuted
         default: return Theme.accent
         }
     }
@@ -134,9 +136,7 @@ struct BuildActivityView: View {
                 .padding(12)
             }
         }
-        .background(Theme.codeBg)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(Theme.border, lineWidth: 1))
+        .codePanel()
     }
 
     @ViewBuilder
@@ -225,8 +225,6 @@ struct BuildActivityView: View {
             .onChange(of: store.rawLines.count) { _, _ in proxy.scrollTo(-1, anchor: .bottom) }
         }
         .frame(height: 360)
-        .background(Theme.codeBg)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        .overlay(RoundedRectangle(cornerRadius: Theme.corner).stroke(Theme.border, lineWidth: 1))
+        .codePanel()
     }
 }

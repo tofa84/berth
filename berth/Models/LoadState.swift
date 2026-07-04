@@ -18,11 +18,6 @@ enum LoadState<Value: Sendable>: Sendable {
         return nil
     }
 
-    var isLoading: Bool {
-        if case .loading = self { return true }
-        return false
-    }
-
     var errorText: String? {
         if case .failed(let m) = self { return m }
         return nil

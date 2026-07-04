@@ -111,13 +111,11 @@ struct BuildsStoreTests {
         #expect(store.isBuilding)
         store.cancelBuild()
         #expect(!store.isBuilding)
-        guard case .failed(let message) = store.phase else {
-            Issue.record("expected .failed, got \(String(describing: store.phase))")
-            return
-        }
-        #expect(message == "Cancelled")
+        #expect(store.phase == .cancelled)
         await settle()
         #expect(app.counts[.builds] == nil)
+        // The cancelled build lands in history as .cancelled (typed, not a message).
+        #expect(store.history.first?.outcome == .cancelled)
     }
 
     @Test func succeededBuildIsRecordedInHistory() async {

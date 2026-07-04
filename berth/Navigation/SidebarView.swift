@@ -134,9 +134,7 @@ struct SidebarView: View {
     private var hostName: String { DisplayHost.name }
 
     private var machineSummary: String {
-        let cores = ProcessInfo.processInfo.processorCount
-        let gb = Int((Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824).rounded())
-        return "\(cores)C · \(gb) GB"
+        "\(HostInfo.cores)C · \(HostInfo.memoryGB) GB"
     }
 }
 

@@ -84,4 +84,29 @@ struct FormattersTests {
         let now = Date(timeIntervalSince1970: 1_000_000_000)
         #expect(Format.relative(now.addingTimeInterval(-3600), now: now) != "—")
     }
+
+    @Test func relativeFromISO8601() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        // Both RFC-3339 shapes parse: with and without fractional seconds.
+        #expect(Format.relative(iso8601: "2023-11-13T22:13:20Z", now: now) != "—")
+        #expect(Format.relative(iso8601: "2023-11-13T22:13:20.123Z", now: now) != "—")
+        // Fractional and plain render of the same instant agree.
+        #expect(Format.relative(iso8601: "2023-11-12T22:13:20Z", now: now)
+            == Format.relative(iso8601: "2023-11-12T22:13:20.000Z", now: now))
+        // Empty → dash; garbage passes through verbatim.
+        #expect(Format.relative(iso8601: "", now: now) == "—")
+        #expect(Format.relative(iso8601: "not a date", now: now) == "not a date")
+    }
+
+    @Test func prettyJSONIsSortedAndPretty() {
+        struct Sample: Encodable {
+            let b: Int
+            let a: String
+        }
+        let json = Format.prettyJSON(Sample(b: 2, a: "x"))
+        // Sorted keys ("a" before "b") and multi-line output.
+        #expect(json.contains("\"a\" : \"x\""))
+        #expect(json.range(of: "\"a\"")!.lowerBound < json.range(of: "\"b\"")!.lowerBound)
+        #expect(json.contains("\n"))
+    }
 }

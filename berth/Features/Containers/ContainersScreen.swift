@@ -48,7 +48,7 @@ struct ContainersScreen: View {
 
             switch store.state {
             case .loading, .idle:
-                loading
+                LoadingPlaceholder()
             case .failed(let msg):
                 CenteredMessage(systemImage: "exclamationmark.triangle", title: "Couldn’t load containers", message: msg)
             case .loaded:
@@ -87,17 +87,12 @@ struct ContainersScreen: View {
         } message: {
             Text("Permanently removes all stopped containers. Running containers are not affected.")
         }
-        .confirmationDialog("Delete container?",
-                            isPresented: Binding(get: { pendingDelete != nil },
-                                                 set: { if !$0 { pendingDelete = nil } }),
-                            titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                if let id = pendingDelete { Task { await store.delete(id) } }
-                pendingDelete = nil
-            }
-            Button("Cancel", role: .cancel) { pendingDelete = nil }
-        } message: {
-            Text("Forcibly removes the container — a running container is killed first.")
+        .deleteConfirmation(
+            item: $pendingDelete,
+            title: "Delete container?",
+            message: "Forcibly removes the container — a running container is killed first."
+        ) { id in
+            Task { await store.delete(id) }
         }
     }
 
@@ -105,7 +100,7 @@ struct ContainersScreen: View {
         switch f {
         case .all: "All \(store.totalCount)"
         case .running: "Running \(store.runningCount)"
-        case .stopped: "Stopped \(store.totalCount - store.runningCount)"
+        case .stopped: "Stopped \(store.stoppedCount)"
         }
     }
 
@@ -119,29 +114,17 @@ struct ContainersScreen: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            cell("STATUS", cols.status)
-            cell("NAME / IMAGE", nil)
-            cell("ID", cols.id)
-            cell("CPU", cols.cpu, alignment: .trailing)
-            cell("MEM", cols.mem, alignment: .trailing)
-            cell("PORTS", cols.ports)
-            cell("UPTIME", cols.uptime, alignment: .trailing)
-            cell("ACTIONS", cols.actions)
+            HeaderCell("STATUS", width: cols.status)
+            HeaderCell("NAME / IMAGE", width: nil)
+            HeaderCell("ID", width: cols.id)
+            HeaderCell("CPU", width: cols.cpu, alignment: .trailing)
+            HeaderCell("MEM", width: cols.mem, alignment: .trailing)
+            HeaderCell("PORTS", width: cols.ports)
+            HeaderCell("UPTIME", width: cols.uptime, alignment: .trailing)
+            HeaderCell("ACTIONS", width: cols.actions)
             Spacer().frame(width: cols.chevron)
         }
-        .font(.berthSans(10, .semibold))
-        .tracking(0.7)
-        .foregroundStyle(Theme.textFaint)
         .padding(.horizontal, 22).padding(.bottom, 8)
-    }
-
-    private func cell(_ text: String, _ width: Double?, alignment: Alignment = .leading) -> some View {
-        Text(text)
-            // Right-aligned columns keep a gutter inside their fixed frame so
-            // the digits don't touch the next column (the HStack has spacing 0).
-            .padding(.trailing, alignment == .trailing ? 12 : 0)
-            .frame(width: width.map { CGFloat($0) }, alignment: alignment)
-            .frame(maxWidth: width == nil ? .infinity : nil, alignment: alignment)
     }
 
     @ViewBuilder
@@ -163,20 +146,20 @@ struct ContainersScreen: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.trailing, 10)
 
-            mono(c.shortID, cols.id)
-            mono("\(c.allocatedCPUs)×", cols.cpu, alignment: .trailing)
-            mono(Format.bytes(c.memoryLimitBytes), cols.mem, alignment: .trailing)
-            mono(c.portsSummary, cols.ports)
-            mono(c.uptimeText, cols.uptime, alignment: .trailing)
+            MonoCell(c.shortID, width: cols.id)
+            MonoCell("\(c.allocatedCPUs)×", width: cols.cpu, alignment: .trailing)
+            MonoCell(Format.bytes(c.memoryLimitBytes), width: cols.mem, alignment: .trailing)
+            MonoCell(c.portsSummary, width: cols.ports)
+            MonoCell(c.uptimeText, width: cols.uptime, alignment: .trailing)
 
             // Actions
             HStack(spacing: 6) {
                 if busy {
                     ProgressView().controlSize(.small).frame(width: 28, height: 28)
                 } else if c.isRunning {
-                    iconButton("stop.fill", tint: Theme.textSecondary) { Task { await store.stop(c.id) } }
+                    RowIconButton(systemImage: "stop.fill") { Task { await store.stop(c.id) } }
                 } else {
-                    iconButton("play.fill", tint: Theme.greenBright) { Task { await store.start(c.id) } }
+                    RowIconButton(systemImage: "play.fill", tint: Theme.greenBright) { Task { await store.start(c.id) } }
                 }
                 Menu {
                     if c.isRunning {
@@ -200,47 +183,5 @@ struct ContainersScreen: View {
         .frame(height: 58)
         .contentShape(Rectangle())
         .onTapGesture { store.selectedID = c.id }
-    }
-
-    private func mono(_ text: String, _ width: Double, alignment: Alignment = .leading) -> some View {
-        Text(text)
-            .font(.berthMono(11.5))
-            .foregroundStyle(Theme.textSecondary)
-            .lineLimit(1)
-            .padding(.trailing, alignment == .trailing ? 12 : 0)
-            .frame(width: width, alignment: alignment)
-    }
-
-    private func iconButton(_ system: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: system).font(.system(size: 11)).foregroundStyle(tint)
-                .frame(width: 28, height: 28)
-                .background(Theme.fill).clipShape(RoundedRectangle(cornerRadius: 7))
-                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Theme.borderStrong, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var loading: some View {
-        VStack { ProgressView().controlSize(.large) }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-struct ErrorToast: View {
-    let text: String
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.circle.fill")
-            Text(text).lineLimit(2)
-        }
-        .font(.berthSans(12))
-        .foregroundStyle(Theme.red)
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(Theme.card)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.red.opacity(0.3), lineWidth: 1))
-        .padding(.bottom, 16)
-        .shadow(color: Theme.cardShadow, radius: 12, y: 4)
     }
 }

@@ -31,7 +31,7 @@ struct TopBar: View {
             }
 
             AccentButton(title: "Run", systemImage: "play.fill") {
-                model.showRunSheet = true
+                model.openRunSheet()
             }
         }
         // Flush-left, aligned to the sidebar's content edge (12 outer + 8 header

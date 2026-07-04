@@ -27,7 +27,7 @@ struct NetworksScreen: View {
 
             switch store.state {
             case .idle, .loading:
-                ProgressView().controlSize(.large).frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingPlaceholder()
             case .failed(let m):
                 CenteredMessage(systemImage: "exclamationmark.triangle", title: "Couldn’t load networks", message: m)
             case .loaded:
@@ -55,17 +55,12 @@ struct NetworksScreen: View {
         .overlay(alignment: .bottom) { if let e = store.actionError { ErrorToast(text: e) } }
         .task(id: model.engine.epoch) { await store.load() }
         .sheet(isPresented: $showCreate) { createSheet(store) }
-        .confirmationDialog("Delete network?",
-                            isPresented: Binding(get: { pendingDelete != nil },
-                                                 set: { if !$0 { pendingDelete = nil } }),
-                            titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                if let id = pendingDelete { Task { await store.delete(id) } }
-                pendingDelete = nil
-            }
-            Button("Cancel", role: .cancel) { pendingDelete = nil }
-        } message: {
-            Text("Removes the network. Containers must be detached first.")
+        .deleteConfirmation(
+            item: $pendingDelete,
+            title: "Delete network?",
+            message: "Removes the network. Containers must be detached first."
+        ) { id in
+            Task { await store.delete(id) }
         }
     }
 
@@ -76,20 +71,14 @@ struct NetworksScreen: View {
 
     private var header: some View {
         HStack(spacing: 0) {
-            cell("NAME", nil)
-            cell("DRIVER", cols.driver)
-            cell("SUBNET", cols.subnet)
-            cell("GATEWAY", cols.gateway)
-            cell("CONTAINERS", cols.containers)
+            HeaderCell("NAME", width: nil)
+            HeaderCell("DRIVER", width: cols.driver)
+            HeaderCell("SUBNET", width: cols.subnet)
+            HeaderCell("GATEWAY", width: cols.gateway)
+            HeaderCell("CONTAINERS", width: cols.containers)
             Spacer().frame(width: cols.actions)
         }
-        .font(.berthSans(10, .semibold)).tracking(0.7).foregroundStyle(Theme.textFaint)
         .padding(.horizontal, 22).padding(.bottom, 8)
-    }
-
-    private func cell(_ t: String, _ w: Double?) -> some View {
-        Text(t).frame(width: w.map { CGFloat($0) }, alignment: .leading)
-            .frame(maxWidth: w == nil ? .infinity : nil, alignment: .leading)
     }
 
     private func row(_ n: NetworkResource, _ store: NetworksStore) -> some View {
@@ -99,10 +88,10 @@ struct NetworksScreen: View {
                 if n.isBuiltin { Tag("DEFAULT") }
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding(.trailing, 10)
-            mono(n.driverLabel, cols.driver)
-            mono(n.subnetText, cols.subnet)
-            mono(n.gatewayText, cols.gateway)
-            mono(store.usedBy(n) == 0 ? "—" : "\(store.usedBy(n))", cols.containers)
+            MonoCell(n.driverLabel, width: cols.driver)
+            MonoCell(n.subnetText, width: cols.subnet)
+            MonoCell(n.gatewayText, width: cols.gateway)
+            MonoCell(store.usedBy(n) == 0 ? "—" : "\(store.usedBy(n))", width: cols.containers)
             Group {
                 if n.isBuiltin {
                     Spacer().frame(width: cols.actions)
@@ -118,11 +107,6 @@ struct NetworksScreen: View {
             }
         }
         .padding(.horizontal, 22).frame(height: 52)
-    }
-
-    private func mono(_ t: String, _ w: Double) -> some View {
-        Text(t).font(.berthMono(11.5)).foregroundStyle(Theme.textSecondary).lineLimit(1)
-            .frame(width: w, alignment: .leading)
     }
 
     private func createSheet(_ store: NetworksStore) -> some View {

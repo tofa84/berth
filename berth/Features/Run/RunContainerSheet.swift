@@ -13,7 +13,7 @@ struct RunContainerSheet: View {
     var body: some View {
         @Bindable var form = form
         VStack(spacing: 0) {
-            header
+            SheetHeader(systemImage: "play.fill", title: "Run a container", command: "container run")
             Divider().overlay(Theme.border)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -22,7 +22,7 @@ struct RunContainerSheet: View {
                     portsSection(form)
                     resourcesSection(form)
                     optionsSection(form)
-                    previewSection(form)
+                    CommandPreviewPanel(command: form.commandPreview)
                 }
                 .padding(20)
             }
@@ -40,27 +40,14 @@ struct RunContainerSheet: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "play.fill").foregroundStyle(Theme.accent)
-            Text("Run a container").font(.berthSans(16, .semibold)).foregroundStyle(Theme.textPrimary)
-            Text("container run").font(.berthMono(11)).foregroundStyle(Theme.textFaint)
-            Spacer()
-            Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 12)).foregroundStyle(Theme.textTertiary).frame(width: 26, height: 26)
-            }.buttonStyle(.plain)
-        }
-        .padding(.horizontal, 20).padding(.vertical, 14)
-    }
-
     private func identitySection(_ form: RunFormModel) -> some View {
         @Bindable var form = form
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                labeled("Image") { FieldText(placeholder: "nginx:latest", text: $form.image, mono: true) }
-                labeled("Name") { FieldText(placeholder: "optional", text: $form.name) }.frame(width: 180)
+                FormField("Image") { FieldText(placeholder: "nginx:latest", text: $form.image, mono: true) }
+                FormField("Name") { FieldText(placeholder: "optional", text: $form.name) }.frame(width: 180)
             }
-            labeled("Platform") {
+            FormField("Platform") {
                 Picker("", selection: $form.arch) {
                     Text("linux/arm64").tag("arm64")
                     Text("linux/amd64").tag("amd64")
@@ -72,28 +59,23 @@ struct RunContainerSheet: View {
 
     private func envSection(_ form: RunFormModel) -> some View {
         @Bindable var form = form
-        return section("Environment", add: { form.addEnv() }) {
+        return FormSection("Environment", onAdd: { form.addEnv() }) {
             ForEach($form.env) { $e in
-                HStack(spacing: 8) {
-                    FieldText(placeholder: "KEY", text: $e.key, mono: true)
-                    Text("=").foregroundStyle(Theme.textFaint)
-                    FieldText(placeholder: "value", text: $e.value, mono: true)
-                    removeButton { form.env.removeAll { $0.id == e.id } }
-                }
+                KeyValueFieldRow(pair: $e) { form.env.removeAll { $0.id == e.id } }
             }
         }
     }
 
     private func portsSection(_ form: RunFormModel) -> some View {
         @Bindable var form = form
-        return section("Published ports", add: { form.addPort() }) {
+        return FormSection("Published ports", onAdd: { form.addPort() }) {
             ForEach($form.ports) { $p in
                 HStack(spacing: 8) {
                     FieldText(placeholder: "8080", text: $p.host, mono: true)
                     Text(":").foregroundStyle(Theme.textFaint)
                     FieldText(placeholder: "80", text: $p.container, mono: true)
                     Toggle("UDP", isOn: $p.udp).toggleStyle(.button).font(.berthSans(11))
-                    removeButton { form.ports.removeAll { $0.id == p.id } }
+                    RemoveRowButton { form.ports.removeAll { $0.id == p.id } }
                 }
             }
         }
@@ -119,26 +101,12 @@ struct RunContainerSheet: View {
         return VStack(alignment: .leading, spacing: 10) {
             SectionCaption(text: "Options")
             FlowLayout(spacing: 10) {
-                optionToggle("Remove on exit --rm", $form.remove)
-                optionToggle("Read-only", $form.readOnly)
-                optionToggle("Rosetta", $form.rosetta)
+                OptionToggle("Remove on exit --rm", $form.remove)
+                OptionToggle("Read-only", $form.readOnly)
+                OptionToggle("Rosetta", $form.rosetta)
             }
             Text("Runs detached — follow output in the container's Logs tab.")
                 .font(.berthSans(11)).foregroundStyle(Theme.textFaint)
-        }
-    }
-
-    private func previewSection(_ form: RunFormModel) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            SectionCaption(text: "Command")
-            Text(form.commandPreview)
-                .font(.berthMono(11.5)).foregroundStyle(Theme.greenBright)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Theme.codeBg)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.border, lineWidth: 1))
         }
     }
 
@@ -171,42 +139,5 @@ struct RunContainerSheet: View {
             .buttonStyle(.plain).disabled(!form.canRun).opacity(form.canRun ? 1 : 0.5)
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
-    }
-
-    // MARK: helpers
-
-    private func labeled<V: View>(_ title: String, @ViewBuilder _ content: () -> V) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.berthSans(11.5)).foregroundStyle(Theme.textTertiary)
-            content()
-        }
-    }
-
-    private func section<V: View>(_ title: String, add: @escaping () -> Void, @ViewBuilder _ content: () -> V) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                SectionCaption(text: title)
-                Spacer()
-                Button(action: add) {
-                    Text("+ Add").font(.berthSans(11.5, .medium)).foregroundStyle(Theme.accent)
-                }.buttonStyle(.plain)
-            }
-            content()
-        }
-    }
-
-    private func removeButton(_ action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: "xmark").font(.system(size: 10)).foregroundStyle(Theme.textTertiary)
-                .frame(width: 24, height: 24)
-        }.buttonStyle(.plain)
-    }
-
-    private func optionToggle(_ label: String, _ binding: Binding<Bool>) -> some View {
-        Toggle(isOn: binding) {
-            Text(label).font(.berthSans(11.5))
-        }
-        .toggleStyle(.button)
-        .tint(Theme.accent)
     }
 }
