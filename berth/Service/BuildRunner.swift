@@ -4,8 +4,9 @@
 //
 //  Native gRPC build executor. Adapted from apple/container 1.0.0
 //  Sources/ContainerBuild/Builder.swift (Apache-2.0; upstream license header
-//  retained below). berth vendors this thin runner instead of calling the
-//  upstream `Builder.build(_:)` for two reasons:
+//  retained below; re-diffed at 1.1.0 — upstream file is byte-identical).
+//  berth vendors this thin runner instead of calling the upstream
+//  `Builder.build(_:)` for two reasons:
 //
 //   1. Progress capture. Upstream hardwires the PerformBuild `progress` metadata
 //      to "tty" whenever a Terminal is attached, and its BuildPipeline writes all
@@ -16,7 +17,7 @@
 //
 //   2. Deterministic teardown. Upstream releases the gRPC client + EventLoopGroup
 //      only inside a `catch Error.buildComplete` block, but that error is never
-//      thrown in 1.0.0 — so a long-lived GUI would leak an EventLoopGroup and a
+//      thrown in 1.0.0/1.1.0 — so a long-lived GUI would leak an EventLoopGroup and a
 //      `runConnections` task per build. `shutdown()` here always runs.
 //
 //  Everything heavy stays upstream: we reuse the public `BuildPipeline`,
