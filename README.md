@@ -72,7 +72,7 @@ A **global search** box filters containers, images, volumes, networks and regist
   ```
 - **Xcode 26** to build.
 
-> berth's Swift Package dependency is pinned to `apple/container` **1.0.0** (`containerization` 0.33.3). The dependency must match your installed engine version — berth performs a version handshake at launch and warns on a mismatch.
+> berth's Swift Package dependency is pinned to `apple/container` **1.1.0** (`containerization` 0.35.0). The dependency must match your installed engine version — berth performs a version handshake at launch and warns on a mismatch.
 
 ### A note on the App Sandbox
 
