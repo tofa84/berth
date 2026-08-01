@@ -12,7 +12,7 @@ Component count: 34.
 ================================================================================
 
 ================================================================================
-container  (version 1.0.0)
+container  (version 1.2.0)
 https://github.com/apple/container
 License: Apache-2.0
 ================================================================================
@@ -325,7 +325,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 ================================================================================
-containerization  (version 0.33.3)
+containerization  (version 0.40.1)
 https://github.com/apple/containerization.git
 License: Apache-2.0
 ================================================================================

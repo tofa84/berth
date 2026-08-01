@@ -211,7 +211,7 @@ extension ContainerService {
             try Task.checkCancellation()
             do {
                 let fh = try await makeClient().dial(id: Self.builderID, port: Self.builderVsockPort)
-                let runner = try BuildRunner(socket: fh, logger: logger)
+                let runner = try await BuildRunner(socket: fh, logger: logger)
                 do {
                     try await runner.info()
                     return runner
