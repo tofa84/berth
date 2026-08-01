@@ -4,7 +4,11 @@
 //
 //  Native gRPC build executor. Adapted from apple/container 1.0.0
 //  Sources/ContainerBuild/Builder.swift (Apache-2.0; upstream license header
-//  retained below; re-diffed at 1.1.0 — upstream file is byte-identical).
+//  retained below; re-diffed at 1.1.0 — byte-identical — and at 1.2.0, where
+//  upstream reworked only the connection wiring: async init via the
+//  grpc-swift-nio-transport 2.9 `wrapping(config:serviceConfig:)` API and the
+//  private HTTP2ConnectBufferingHandler deleted (the new API buffers the
+//  connect itself). Adopted here 1:1; `metadata(_:)` is unchanged at 1.2.0.
 //  berth vendors this thin runner instead of calling the upstream
 //  `Builder.build(_:)` for two reasons:
 //
@@ -17,7 +21,7 @@
 //
 //   2. Deterministic teardown. Upstream releases the gRPC client + EventLoopGroup
 //      only inside a `catch Error.buildComplete` block, but that error is never
-//      thrown in 1.0.0/1.1.0 — so a long-lived GUI would leak an EventLoopGroup and a
+//      thrown in 1.0.0–1.2.0 — so a long-lived GUI would leak an EventLoopGroup and a
 //      `runConnections` task per build. `shutdown()` here always runs.
 //
 //  Everything heavy stays upstream: we reuse the public `BuildPipeline`,
@@ -70,23 +74,31 @@ nonisolated struct BuildRunner: Sendable {
         }
     }
 
-    init(socket: FileHandle, logger: Logger) throws {
+    init(socket: FileHandle, logger: Logger) async throws {
         try socket.berthSetSendBufSize(4 << 20)
         try socket.berthSetRecvBufSize(2 << 20)
 
         // A build is a single bidirectional stream; two loops are plenty for a GUI.
         let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
 
-        let channel = try ClientBootstrap(group: group)
-            .channelInitializer { channel in
-                channel.eventLoop.makeCompletedFuture(withResultOf: {
-                    try channel.pipeline.syncOperations.addHandler(HTTP2ConnectBufferingHandler())
-                })
+        let transport = try await HTTP2ClientTransport.WrappedChannel.wrapping(
+            config: .defaults,
+            serviceConfig: .init()
+        ) { configure in
+            try await withCheckedThrowingContinuation { continuation in
+                ClientBootstrap(group: group)
+                    .channelInitializer { channel in
+                        configure(channel).map { configured in
+                            continuation.resume(returning: configured)
+                        }
+                    }
+                    .withConnectedSocket(socket.fileDescriptor)
+                    .whenFailure { error in
+                        continuation.resume(throwing: error)
+                    }
             }
-            .withConnectedSocket(socket.fileDescriptor)
-            .wait()
+        }
 
-        let transport = HTTP2ClientTransport.WrappedChannel.wrapping(channel: channel)
         let grpcClient = GRPCClient(transport: transport)
 
         self.grpcClient = grpcClient
@@ -204,7 +216,7 @@ nonisolated struct BuildRunner: Sendable {
 }
 
 // Copied verbatim from upstream Builder.swift (the module-internal helpers are
-// not visible to berth): socket buffer sizing + the HTTP/2 connect buffer.
+// not visible to berth): socket buffer sizing.
 
 extension FileHandle {
     @discardableResult
@@ -229,50 +241,5 @@ extension FileHandle {
         if res == -1 {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EPERM)
         }
-    }
-}
-
-/// Buffers incoming bytes until the full gRPC HTTP/2 pipeline is configured,
-/// then replays them. Copied from upstream Builder.swift (private there).
-private final class HTTP2ConnectBufferingHandler: ChannelDuplexHandler, RemovableChannelHandler {
-    typealias InboundIn = ByteBuffer
-    typealias InboundOut = ByteBuffer
-    typealias OutboundIn = ByteBuffer
-    typealias OutboundOut = ByteBuffer
-
-    private var removalScheduled = false
-    private var bufferedReads: [NIOAny] = []
-
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
-        bufferedReads.append(data)
-    }
-
-    func channelReadComplete(context: ChannelHandlerContext) {}
-
-    func flush(context: ChannelHandlerContext) {
-        if !removalScheduled {
-            removalScheduled = true
-            context.eventLoop.assumeIsolatedUnsafeUnchecked().execute {
-                context.pipeline.syncOperations.removeHandler(self, promise: nil)
-            }
-        }
-        context.flush()
-    }
-
-    func removeHandler(context: ChannelHandlerContext, removalToken: ChannelHandlerContext.RemovalToken) {
-        var didRead = false
-        while !bufferedReads.isEmpty {
-            context.fireChannelRead(bufferedReads.removeFirst())
-            didRead = true
-        }
-        if didRead {
-            context.fireChannelReadComplete()
-        }
-        context.leavePipeline(removalToken: removalToken)
-    }
-
-    func channelInactive(context: ChannelHandlerContext) {
-        bufferedReads.removeAll()
-        context.fireChannelInactive()
     }
 }
