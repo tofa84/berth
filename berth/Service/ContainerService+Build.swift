@@ -155,6 +155,7 @@ extension ContainerService {
             contentStore: RemoteContentStoreClient(),
             buildArgs: request.buildArgs,
             secrets: [:],
+            ssh: "",  // "" = no SSH agent forwarding (the CLI default; --ssh is not exposed in the build sheet)
             contextDir: request.contextDir,
             dockerfile: dockerfileData,
             dockerignore: dockerignoreData,

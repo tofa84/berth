@@ -9,6 +9,9 @@
 //  grpc-swift-nio-transport 2.9 `wrapping(config:serviceConfig:)` API and the
 //  private HTTP2ConnectBufferingHandler deleted (the new API buffers the
 //  connect itself). Adopted here 1:1; `metadata(_:)` is unchanged at 1.2.0.
+//  Re-diffed at 1.2.2: upstream added only an `ssh` field on `BuildConfig`
+//  plus its `metadata(_:)` key (mirrored below; berth passes "" = disabled).
+//  Connection wiring unchanged at 1.2.2.
 //  berth vendors this thin runner instead of calling the upstream
 //  `Builder.build(_:)` for two reasons:
 //
@@ -201,6 +204,9 @@ nonisolated struct BuildRunner: Sendable {
         }
         for (id, data) in config.secrets {
             metadata.addString(id + "=" + data.base64EncodedString(), forKey: "secrets")
+        }
+        if config.ssh == "default" {
+            metadata.addString("default", forKey: "ssh")
         }
         for output in config.exports {
             metadata.addString(try output.stringValue, forKey: "outputs")
