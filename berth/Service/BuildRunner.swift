@@ -11,7 +11,8 @@
 //  connect itself). Adopted here 1:1; `metadata(_:)` is unchanged at 1.2.0.
 //  Re-diffed at 1.2.2: upstream added only an `ssh` field on `BuildConfig`
 //  plus its `metadata(_:)` key (mirrored below; berth passes "" = disabled).
-//  Connection wiring unchanged at 1.2.2.
+//  Connection wiring unchanged at 1.2.2. Re-diffed at 1.3.1: no changes in
+//  Sources/ContainerBuild between 1.2.2 and 1.3.1.
 //  berth vendors this thin runner instead of calling the upstream
 //  `Builder.build(_:)` for two reasons:
 //

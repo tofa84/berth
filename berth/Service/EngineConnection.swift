@@ -22,7 +22,7 @@ final class EngineConnection {
     }
 
     /// The engine version this app was built against (SPM pin).
-    static let pinnedVersion = "1.2.2"
+    static let pinnedVersion = "1.3.1"
 
     private(set) var state: State = .connecting
     private(set) var starting = false
